@@ -10,24 +10,25 @@
 *{box-sizing:border-box}
 html,body{margin:0;height:100%;font-family:Pretendard,-apple-system,"Malgun Gothic",sans-serif;color:var(--ink);background:var(--soft);font-size:13px}
 button,input,select,textarea{font:inherit;color:inherit}
-#app{display:grid;grid-template-columns:190px 1fr 390px;grid-template-rows:50px 1fr;height:100vh}
-#top{grid-column:1/-1;display:flex;align-items:center;gap:6px;padding:0 12px;background:#111;color:#fff}
-#top .brand{font-weight:900;letter-spacing:-.03em;font-size:17px;margin-right:10px}
-#top .brand i{font-style:normal;color:var(--red)}
-#top button{background:#262626;border:0;border-radius:6px;padding:7px 11px;color:#fff;cursor:pointer;white-space:nowrap}
-#top button:hover{background:#3a3a3a}
-#top button.pri{background:var(--red)}
-#top .sep{width:1px;height:22px;background:#333;margin:0 4px}
-#top .status{margin-left:auto;margin-right:8px;color:#a1a1aa;font-size:12px;white-space:nowrap}
-#top .status b{color:#fff}
+#app{display:grid;grid-template-columns:190px 1fr 390px;height:100vh}
+#app.nopanel{grid-template-columns:190px 1fr}
+#app.nopanel #panel{display:none}
+#tools{position:absolute;left:16px;right:16px;top:12px;display:flex;align-items:center;gap:4px;z-index:5;pointer-events:none}
+#tools>*{pointer-events:auto}
+#tools .gap{flex:1;pointer-events:none}
+.tb{height:32px;min-width:32px;border:0;border-radius:8px;background:transparent;color:var(--ink);padding:0 11px;cursor:pointer;display:inline-flex;align-items:center;justify-content:center;gap:6px;font-weight:600;white-space:nowrap}
+.tb:hover{background:rgba(255,255,255,.6)}
+.tb:disabled{opacity:.3;cursor:default;background:transparent}
+.tb.ic{padding:0;width:32px}
+.tb svg{width:17px;height:17px;fill:none;stroke:currentColor;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round}
+.tb.pri{background:var(--ink);color:#fff;margin-left:4px}
+.tb.pri:hover{background:#000}
 #pages{overflow:auto;border-right:1px solid var(--line);background:#fafafa;padding:10px}
 .pc{border-radius:8px;padding:6px;margin-bottom:8px;cursor:pointer;border:1.5px solid transparent}
 .pc:hover{background:#f0f0f1}
 .pc.on{border-color:var(--red);background:#fff}
-.pc-th{aspect-ratio:16/9;border-radius:4px;overflow:hidden;display:grid;place-items:center;border:1px solid var(--line)}
-.pc-th img{width:100%;height:100%;object-fit:contain}
-.pc-th img.cv{object-fit:cover}
-.pc-th .tl{font-weight:900;font-size:14px;letter-spacing:-.03em;color:#fff}
+.pc-th{position:relative;aspect-ratio:16/9;border-radius:4px;overflow:hidden;border:1px solid var(--line)}
+.pc-th .page{position:absolute;left:0;top:0;transform-origin:0 0;transform:scale(var(--ts,.08));pointer-events:none}
 .pc-m{display:flex;align-items:center;gap:4px;margin-top:5px;font-size:12px;color:var(--mut)}
 .pc-m b{color:var(--ink)}
 .pc-act{margin-left:auto;display:none;gap:2px}
@@ -119,26 +120,31 @@ input[type=color]{width:34px;height:26px;border:1px solid var(--line);border-rad
 #pageWrap.t-lasso .page,#pageWrap.t-add .page,#pageWrap.t-pick .page{cursor:crosshair}
 #pageWrap.t-move .page{cursor:move}
 .cv-logo{position:absolute;inset:0;display:grid;place-items:center}
+.inter [contenteditable]{outline:none;border-radius:6px;cursor:text;user-select:text}
+.inter [contenteditable]:hover{box-shadow:0 0 0 2px rgba(161,161,170,.6)}
+.inter [contenteditable]:focus{box-shadow:0 0 0 2px var(--red)}
+.inter [contenteditable]:empty::before{content:attr(data-ph);opacity:.35}
+.inter .pg-title{min-width:300px;padding:0 6px;margin-left:-6px}
+.inter .cv-foot span[contenteditable]{padding:2px 6px}
 .cv-foot{position:absolute;left:0;right:0;bottom:62px;text-align:center;font-size:26px;font-weight:700;letter-spacing:.03em;word-spacing:.25em}
 .cl-contact{position:absolute;left:108px;bottom:96px;font-size:40px;line-height:1.55;font-weight:500}
 .cl-logo{position:absolute;right:108px;bottom:96px}
 .rimg{position:absolute;inset:0;width:100%;height:100%}
-/* ---- modal, toast ---- */
-#modal{position:fixed;inset:0;background:rgba(0,0,0,.4);display:grid;place-items:center;z-index:50}
-#modal[hidden]{display:none}
-.mbox{background:#fff;border-radius:12px;width:min(560px,92vw);max-height:88vh;overflow:auto;padding:20px 22px}
-.mbox h2{margin:0 0 14px;font-size:17px}
-.mbtns{display:flex;justify-content:flex-end;gap:8px;margin-top:16px}
-.mbox .row>label{width:110px}
-table.hist{width:100%;border-collapse:collapse;font-size:12px}
-table.hist td,table.hist th{border-bottom:1px solid var(--line);padding:6px 4px;text-align:left;vertical-align:top}
+/* ---- popover, toast ---- */
+#pop{position:fixed;z-index:50;background:#fff;border-radius:10px;box-shadow:0 8px 30px rgba(0,0,0,.18),0 0 0 1px rgba(0,0,0,.05);padding:12px;width:228px}
+#pop[hidden]{display:none}
+#pop .pop-h{font-size:12px;font-weight:700;color:var(--mut);margin-bottom:8px}
+#pop .sws{display:flex;gap:6px;margin:8px 0}
+#pop .sws button{width:24px;height:24px;border-radius:6px;border:1px solid var(--line);cursor:pointer;padding:0}
+#pop .sws button.on{box-shadow:0 0 0 2px #fff,0 0 0 4px var(--red)}
+#pop .btn{width:100%;margin-top:4px}
 .toast{position:fixed;left:50%;bottom:24px;transform:translateX(-50%);background:#111;color:#fff;padding:10px 16px;border-radius:8px;z-index:60;display:flex;gap:12px;align-items:center;box-shadow:0 6px 20px rgba(0,0,0,.25)}
 .toast button{background:#333;border:0;color:#fff;border-radius:5px;padding:4px 9px;cursor:pointer}
 #print{display:none}
 @media print{
   @page{size:1920px 1080px;margin:0}
   html,body{background:#fff;height:auto}
-  #app,#modal,.toast{display:none!important}
+  #app,#pop,.toast{display:none!important}
   #print{display:block!important}
   #print .page{break-after:page;page-break-after:always}
   *{-webkit-print-color-adjust:exact;print-color-adjust:exact}
@@ -147,27 +153,22 @@ table.hist td,table.hist th{border-bottom:1px solid var(--line);padding:6px 4px;
 </head>
 <body>
 <div id="app">
-  <header id="top">
-    <span class="brand">BEBOP<i>.</i> Spec</span>
-    <button id="bNew">새 문서</button>
-    <button id="bOpen">열기</button>
-    <button id="bSave">저장</button>
-    <button id="bSaveAs">다른 이름으로</button>
-    <span class="sep"></span>
-    <button id="bUndo" title="실행 취소 (Ctrl+Z)">↶</button>
-    <button id="bRedo" title="다시 실행 (Ctrl+Shift+Z)">↷</button>
-    <span class="status" id="status"></span>
-    <button id="bHist">전달 기록</button>
-    <button id="bDeliver">전달 완료 기록</button>
-    <button id="bSet">문서 설정</button>
-    <button id="bPdf" class="pri">PDF 출력</button>
-  </header>
   <aside id="pages"></aside>
-  <main id="stage"><div id="pageWrap"></div></main>
+  <main id="stage">
+    <div id="tools">
+      <button class="tb ic" id="bUndo" title="실행 취소 (⌘Z)"><svg viewBox="0 0 24 24"><path d="M9 14 4 9l5-5"/><path d="M4 9h10.5a5.5 5.5 0 0 1 0 11H11"/></svg></button>
+      <button class="tb ic" id="bRedo" title="다시 실행 (⇧⌘Z)"><svg viewBox="0 0 24 24"><path d="m15 14 5-5-5-5"/><path d="M20 9H9.5a5.5 5.5 0 0 0 0 11H13"/></svg></button>
+      <span class="gap"></span>
+      <button class="tb" id="bNew" title="새 문서">New</button>
+      <button class="tb" id="bSave" title="저장 (⌘S) · 다른 이름으로 ⇧⌘S · 열기 ⌘O 또는 .json 파일을 끌어놓기">Save</button>
+      <button class="tb pri" id="bPdf" title="PDF로 내보내기">Export</button>
+    </div>
+    <div id="pageWrap"></div>
+  </main>
   <aside id="panel"></aside>
 </div>
 <div id="print"></div>
-<div id="modal" hidden></div>
+<div id="pop" hidden></div>
 <datalist id="dl-color"></datalist><datalist id="dl-mat"></datalist><datalist id="dl-fin"></datalist>
 
 <script>
@@ -240,7 +241,8 @@ function freshDoc(){
 }
 function resetCaches(){ for (const k in RT) delete RT[k]; for (const k in RTp) delete RTp[k]; imgCache.clear(); cleanCache.clear(); cleanReady.clear(); ui.sel.clear(); ui.selPart = null; ui.selRef = null; }
 const curPage = () => S.pages[cur];
-function pageBg(p){ return (p.type === 'cover' || p.type === 'closing') ? S.meta.coverBg : (p.bg || S.meta.pageBg); }
+const isEnd = p => p.type === 'cover' || p.type === 'closing';
+function pageBg(p){ return p.bg || (isEnd(p) ? S.meta.coverBg : S.meta.pageBg); }
 function addImage(url){ const id = 'i' + uid(); IMG[id] = url; return id; }
 function getImg(id){
   if (!imgCache.has(id)) imgCache.set(id, new Promise((res, rej) => { const i = new Image(); i.onload = () => res(i); i.onerror = rej; i.src = IMG[id]; }));
@@ -576,7 +578,10 @@ function buildPage(p, i, inter){
   const page = el('div', { class: 'page' + (inter ? ' inter' : ''), style: { background: bg, color: dark ? '#fff' : '#111' } });
   if (p.type === 'cover'){
     page.append(el('div', { class: 'cv-logo' }, logoEl(170, dark)));
-    page.append(el('div', { class: 'cv-foot' }, [S.meta.project, S.meta.docType, S.meta.date].filter(Boolean).join('  /  ')));
+    const ed = (key, ph) => el('span', { contenteditable: 'true', spellcheck: 'false', 'data-meta': key, 'data-ph': ph }, S.meta[key] || null);
+    page.append(el('div', { class: 'cv-foot' }, inter
+      ? [ed('project', '프로젝트명'), ' / ', ed('docType', '문서 유형'), ' / ', ed('date', '일자')]
+      : [S.meta.project, S.meta.docType, S.meta.date].filter(Boolean).join('  /  ')));
     return page;
   }
   if (p.type === 'closing'){
@@ -592,13 +597,13 @@ function buildPage(p, i, inter){
   }
   // ---- spec ----
   chrome(page, i, dark);
-  if (p.title) page.append(el('div', { class: 'pg-title' }, p.title));
+  if (inter) page.append(el('div', { class: 'pg-title', contenteditable: 'true', spellcheck: 'false', 'data-title': '1', 'data-ph': '소제목' }, p.title || null));
+  else if (p.title) page.append(el('div', { class: 'pg-title' }, p.title));
   const top = listTop(p);
   const list = el('div', { class: 'pg-list', style: { top: top + 'px', width: p.listW + 'px', height: (985 - top) + 'px', columnCount: p.listCols } });
-  const ch = S.meta.showRevMarks ? changedSet() : null;
   p.parts.forEach((pt, ix) => {
     list.append(el('div', { class: 'li' + (inter && ui.selPart === pt.uid ? ' on' : ''), 'data-part': inter ? pt.uid : null },
-      el('div', { class: 'li-h' }, el('span', { class: 'li-dot' }, p.startNum + ix), el('span', {}, pt.name || (inter ? '부품명' : '')), ch && ch.has(pt.uid) ? el('span', { class: 'rev' }, '△') : null),
+      el('div', { class: 'li-h' }, el('span', { class: 'li-dot' }, p.startNum + ix), el('span', {}, pt.name || (inter ? '부품명' : ''))),
       el('div', { class: 'li-b' }, specLines(pt).map((l, k) => k ? [el('br'), l] : l))));
   });
   page.append(list);
@@ -677,9 +682,10 @@ function drawOverlay(canvas, p, r){
 // ---------- render ----------
 function layout(){
   const st = $('#stage'), w = $('#pageWrap');
-  scale = Math.max(0.05, Math.min((st.clientWidth - 48)/1920, (st.clientHeight - 48)/1080));
+  const T = 56, B = 24;
+  scale = Math.max(0.05, Math.min((st.clientWidth - 48)/1920, (st.clientHeight - T - B)/1080));
   w.style.transform = `scale(${scale})`;
-  w.style.left = (st.clientWidth - 1920*scale)/2 + 'px'; w.style.top = (st.clientHeight - 1080*scale)/2 + 'px';
+  w.style.left = (st.clientWidth - 1920*scale)/2 + 'px'; w.style.top = T + (st.clientHeight - T - B - 1080*scale)/2 + 'px';
 }
 function renderAll(){ renderSide(); renderPanel(); renderPage(); }
 function renderPage(){
@@ -693,32 +699,21 @@ function checkOverflow(pg){
   const l = pg.querySelector('.pg-list'), w = $('#ovf'); if (!l || !w) return;
   const over = l.scrollWidth > l.clientWidth + 4; w.hidden = !over;
 }
-function updateTop(){
-  const ch = changedSet(), m = S.meta, s = $('#status');
-  const removed = ch ? ch.removed : 0;
-  s.replaceChildren(...[
-    m.version ? el('span', {}, el('b', {}, 'v' + pad2(m.version)), ' 전달됨') : el('span', {}, '미전달'),
-    ch && (ch.size || removed) ? el('span', {}, ` · 이후 변경 ${ch.size}${removed ? ` · 삭제 ${removed}` : ''}`) : null].filter(Boolean));
-  $('#bUndo').disabled = !undoS.length; $('#bRedo').disabled = !redoS.length;
-}
-function thumb(p){
-  if (p.type === 'cover' || p.type === 'closing') return el('span', { class: 'tl', style: { color: isDark(pageBg(p)) ? '#fff' : '#111' } }, 'BEBOP.');
-  if (p.imageId) return el('img', { src: IMG[p.imageId], class: p.type === 'render' ? 'cv' : '' });
-  return el('span', { class: 'mut' }, '비어 있음');
-}
+function updateTop(){ $('#bUndo').disabled = !undoS.length; $('#bRedo').disabled = !redoS.length; }
 function insertIdx(){ return clamp(cur + 1, 1, S.pages.length - (S.pages[S.pages.length-1].type === 'closing' ? 1 : 0)); }
 function renderSide(){
   const s = $('#pages'); s.replaceChildren();
   S.pages.forEach((p, i) => {
-    const fixed = p.type === 'cover' || p.type === 'closing';
+    const fixed = isEnd(p);
     const act = fixed ? null : el('span', { class: 'pc-act' },
       el('button', { title: '위로', onclick: e => { e.stopPropagation(); movePage(i, -1); } }, '↑'),
       el('button', { title: '아래로', onclick: e => { e.stopPropagation(); movePage(i, 1); } }, '↓'),
       el('button', { title: '페이지 삭제', onclick: e => { e.stopPropagation(); delPage(i); } }, '×'));
     s.append(el('div', { class: 'pc' + (i === cur ? ' on' : ''), onclick: () => { cur = i; ui.sel.clear(); ui.selPart = null; ui.selRef = null; renderAll(); } },
-      el('div', { class: 'pc-th', style: { background: pageBg(p) } }, thumb(p)),
-      el('div', { class: 'pc-m' }, el('b', {}, i + 1), TYPE_LABEL[p.type], p.type === 'spec' && p.parts.length ? ` · ${p.startNum}–${p.startNum + p.parts.length - 1}` : '', act)));
+      el('div', { class: 'pc-th' }, buildPage(p, i, false)),
+      el('div', { class: 'pc-m' }, el('b', {}, i + 1), p.type === 'spec' && p.parts.length ? `${p.startNum}–${p.startNum + p.parts.length - 1}` : '', act)));
   });
+  const th = s.querySelector('.pc-th'); if (th) s.style.setProperty('--ts', th.clientWidth/1920);
   s.append(el('div', { class: 'addp' },
     el('button', { onclick: () => pickFile('image/*', true).then(addRenderPages) }, '+ 렌더 이미지 페이지'),
     el('button', { onclick: addSpecPage }, '+ 시방서 페이지')));
@@ -735,7 +730,7 @@ function delPage(i){
 function addSpecPage(){
   commit(); const p = newSpecPage();
   const prev = [...S.pages].reverse().find(x => x.type === 'spec');
-  if (prev){ p.startNum = prev.startNum + prev.parts.length; p.listW = prev.listW; p.listCols = prev.listCols; p.order = prev.order; p.det.tol = prev.det.tol; p.det.merge = prev.det.merge; p.det.minArea = prev.det.minArea; p.det.knockout = prev.det.knockout; }
+  if (prev){ p.listW = prev.listW; p.listCols = prev.listCols; p.order = prev.order; p.det.tol = prev.det.tol; p.det.merge = prev.det.merge; p.det.minArea = prev.det.minArea; p.det.knockout = prev.det.knockout; }
   const at = insertIdx(); S.pages.splice(at, 0, p); cur = at; renderAll();
 }
 async function addRenderPages(files){
@@ -804,23 +799,9 @@ function renderPanel(){
   const P = $('#panel'), st = P.scrollTop; P.replaceChildren(); refreshLists();
   const p = curPage(); if (!p) return;
   const lite = () => { renderPage(); renderSide(); };
-  if (p.type === 'cover'){
-    P.append(sec('표지',
-      row('프로젝트', inp(S.meta, 'project', { onInput: lite })),
-      row('문서 유형', inp(S.meta, 'docType', { onInput: lite })),
-      row('일자', inp(S.meta, 'date', { ph: '2026.10.16', onInput: lite })),
-      row('배경색', colorInp(S.meta, 'coverBg', lite)),
-      el('p', { class: 'hint' }, '프로젝트명·문서 유형은 모든 페이지 바닥글에도 쓰여요. 로고 이미지는 문서 설정에서 바꿀 수 있어요.'),
-      el('div', { class: 'row' }, btn('문서 설정 열기', openSettings))));
-    return;
-  }
-  if (p.type === 'closing'){
-    P.append(sec('마무리 장표',
-      row('연락처', inp(S.meta, 'contact1', { onInput: lite })),
-      row('주소', inp(S.meta, 'contact2', { onInput: lite })),
-      row('배경색', colorInp(S.meta, 'coverBg', lite))));
-    return;
-  }
+  const app = $('#app'), noPanel = isEnd(p);
+  if (app.classList.contains('nopanel') !== noPanel){ app.classList.toggle('nopanel', noPanel); layout(); }
+  if (noPanel) return;
   if (p.type === 'render'){
     P.append(sec('렌더 이미지',
       el('div', { class: 'row' }, btn(p.imageId ? '이미지 교체' : '이미지 업로드', () => pickFile('image/*').then(f => f[0] && setRenderImg(p, f[0])), 'pri')),
@@ -838,9 +819,6 @@ function renderPanel(){
     p.imageId ? range('이미지 크기', Math.round(p.box.w/fitDims(p).w*100), 30, 220, 1, v => {
       const f = fitDims(p), cx = p.box.x + p.box.w/2, cy = p.box.y + p.box.h/2;
       p.box.w = f.w*v/100; p.box.h = f.h*v/100; p.box.x = cx - p.box.w/2; p.box.y = cy - p.box.h/2; renderPage(); }, v => v + '%') : null,
-    row('제목', inp(p, 'title', { ph: '예: Body (비우면 표시 안 함)' })),
-    row('시작 번호', (() => { const e = inp(p, 'startNum', { onInput: () => { p.startNum = Math.max(0, parseInt(p.startNum) || 0); renderPage(); renderSide(); } }); e.type = 'number'; e.style.width = '90px'; return e; })()),
-    bgRow(p, lite),
     p.imageId ? el('p', { class: 'hint' }, '캡처를 교체해도 같은 구도면 넘버와 내용이 위치 기준으로 유지돼요.') : el('p', { class: 'hint' }, '라이노 ViewCaptureToFile/Clipboard로 만든 PNG를 그대로 쓰면 돼요. 클립보드 붙여넣기(Ctrl+V)도 됩니다.')));
   if (p.imageId){
     const bgHex = p.det.bg || p.det.autoBg;
@@ -873,9 +851,8 @@ function renderPanel(){
         p.parts.length ? btn('마커 자동 재배치', () => { commit(); placeMarkers(p, true); renderAll(); }) : null),
       el('p', { class: 'hint' }, 'R/L이 좌우 열로 나뉜 배치는 열 우선이 맞아요. 번호를 바꾸려면 마커를 다른 마커 위에 놓거나(서로 교환), 아래 리스트를 끌어 올리세요. 마커를 클릭하면 화살표 끝점도 옮길 수 있어요.')));
   }
-  const ch = changedSet();
   const plist = el('div', { class: 'plist' });
-  p.parts.forEach((pt, ix) => plist.append(partRow(p, pt, ix, ch, plist)));
+  p.parts.forEach((pt, ix) => plist.append(partRow(p, pt, ix, plist)));
   P.append(sec('5. 부품 리스트',
     row('열 수', seg([[1, '1열'], [2, '2열'], [3, '3열']], p.listCols, v => { commit(); p.listCols = v; renderAll(); })),
     range('리스트 폭', p.listW, 400, 1300, 10, v => { p.listW = v; renderPage(); }, v => v + 'px'),
@@ -896,11 +873,10 @@ function bgRow(p, after){
     el('span', { class: 'mut' }, p.bg ? '이 페이지만' : '전체 설정'),
     p.bg ? btn('전체 설정 사용', () => { commit(); p.bg = ''; renderAll(); }) : null);
 }
-function partRow(p, pt, ix, ch, box){
+function partRow(p, pt, ix, box){
   const grip = el('span', { class: 'grip', draggable: 'true', title: '끌어서 순서 변경' }, '⠿');
   const row = el('div', { class: 'prow' + (ui.selPart === pt.uid ? ' on' : ''), 'data-uid': pt.uid },
     el('div', { class: 'prow-h' }, grip, el('span', { class: 'dot' }, p.startNum + ix), inp(pt, 'name', { ph: '부품명 (예: 바디 측면 하우징 R)' }),
-      ch && ch.has(pt.uid) ? el('span', { class: 'chg' }, '변경') : null,
       el('button', { class: 'ib', title: '아래 항목에 사양 복사 (R→L 이름 자동)', onclick: () => copyDown(p, ix) }, '↓'),
       el('button', { class: 'ib', title: '이 넘버 삭제 (개체는 제외 처리)', onclick: () => deletePart(p, pt.uid) }, '×')),
     el('div', { class: 'prow-g' },
@@ -1020,8 +996,9 @@ function startDrag(e, move, up){
   window.addEventListener('pointermove', mv); window.addEventListener('pointerup', u);
 }
 function onDown(e){
-  if (e.button !== 0) return;
+  if (e.button !== 0 || e.target.isContentEditable) return;
   const p = curPage(), t = e.target, P = toPage(e);
+  if (isEnd(p)){ openBgPop(p, e.clientX, e.clientY); return; }
   const attr = (n) => { const x = t.closest(`[${n}]`); return x ? x.getAttribute(n) : null; };
   if (attr('data-refx')){ commit(); p.refs = p.refs.filter(r => r.id !== attr('data-refx')); ui.selRef = null; renderAll(); return; }
   if (attr('data-drop')){ pickFile('image/*').then(fs => { if (!fs[0]) return; p.type === 'spec' ? setCapture(p, fs[0]) : setRenderImg(p, fs[0]); }); return; }
@@ -1070,7 +1047,13 @@ function onDown(e){
   }
   const partId = attr('data-part');
   if (partId){ ui.selPart = partId; renderAll(); const r = document.querySelector(`.prow[data-uid="${partId}"]`); r && r.scrollIntoView({ block: 'nearest' }); return; }
-  if (p.type !== 'spec' || !p.imageId || !p.box) return;
+  if (p.type !== 'spec') return;
+  const inBox = p.imageId && p.box && P.x >= p.box.x && P.y >= p.box.y && P.x <= p.box.x + p.box.w && P.y <= p.box.y + p.box.h;
+  if (!inBox && (ui.tool === 'select' || !p.imageId)){
+    if (ui.sel.size || ui.selPart){ ui.sel.clear(); ui.selPart = null; renderAll(); }
+    openBgPop(p, e.clientX, e.clientY); return;
+  }
+  if (!p.imageId || !p.box) return;
   e.preventDefault();
   const I = fromPg(p, P), r = RT[p.id] && RT[p.id].key === rtKey(p) ? RT[p.id] : null;
   const inImg = I.x >= 0 && I.y >= 0 && I.x <= p.nw && I.y <= p.nh;
@@ -1108,72 +1091,50 @@ function onDown(e){
   }
 }
 
-// ---------- revisions ----------
-function specSnapshot(){
-  const o = {};
-  S.pages.forEach(p => { if (p.type !== 'spec') return; p.parts.forEach(pt => { o[pt.uid] = [pt.name, pt.color, pt.material, pt.finish, pt.note].join('\u0001'); }); });
-  return o;
+// ---------- background popover ----------
+function closePop(){ $('#pop').hidden = true; }
+function openBgPop(p, x, y){
+  const pop = $('#pop'), end = isEnd(p), group = end ? '표지·마무리' : '모든 시방서·렌더 페이지';
+  const cur = () => pageBg(p);
+  let c = false;
+  const set = v => { if (!c){ commit(); c = true; } p.bg = v; renderPage(); renderSide(); sync(); };
+  const color = el('input', { type: 'color' });
+  color.addEventListener('input', () => set(color.value));
+  const hex = el('input', { class: 'in', spellcheck: 'false', style: { fontFamily: 'ui-monospace,monospace' } });
+  hex.addEventListener('change', () => { const v = hex.value.trim().replace(/^#?/, '#').toLowerCase(); /^#[0-9a-f]{6}$/.test(v) ? set(v) : (hex.value = cur()); });
+  const SW = end ? ['#000000', '#18181b', '#ffffff', '#e60012'] : ['#e4e4e4', '#f4f4f5', '#ffffff', '#d4d4d8', '#18181b'];
+  const sws = el('div', { class: 'sws' }, SW.map(v => el('button', { style: { background: v }, title: v, 'data-v': v, onclick: () => set(v) })));
+  const sync = () => { color.value = cur(); hex.value = cur(); sws.querySelectorAll('button').forEach(b => b.classList.toggle('on', b.dataset.v === cur())); };
+  const all = btn(group + '에 적용', () => {
+    commit(); const v = cur(); if (end) S.meta.coverBg = v; else S.meta.pageBg = v;
+    S.pages.forEach(q => { if (isEnd(q) === end) q.bg = ''; }); renderAll(); toast(`${group} 배경을 ${v}로 맞췄어요`);
+  });
+  pop.replaceChildren(el('div', { class: 'pop-h' }, '배경색'), el('div', { class: 'row' }, color, hex), sws, all);
+  sync(); pop.hidden = false;
+  const r = pop.getBoundingClientRect();
+  pop.style.left = clamp(x + 14, 8, innerWidth - r.width - 8) + 'px';
+  pop.style.top = clamp(y + 14, 8, innerHeight - r.height - 8) + 'px';
 }
-function changedSet(){
-  const snap = S.meta.snapshot; if (!snap) return null;
-  const now = specSnapshot(), s = new Set();
-  for (const k in now) if (snap[k] !== now[k]) s.add(k);
-  s.removed = Object.keys(snap).filter(k => !(k in now)).length;
-  return s;
-}
+document.addEventListener('pointerdown', e => { if (!$('#pop').hidden && !e.target.closest('#pop')) closePop(); }, true);
 
-// ---------- modals ----------
-function openModal(title, body, buttons){
-  const m = $('#modal'); m.hidden = false;
-  m.replaceChildren(el('div', { class: 'mbox' }, el('h2', {}, title), body, el('div', { class: 'mbtns' }, buttons)));
-  m.onclick = e => { if (e.target === m) closeModal(); };
-}
-function closeModal(){ $('#modal').hidden = true; $('#modal').replaceChildren(); }
-function openSettings(){
-  const M = S.meta, lite = () => { renderPage(); renderSide(); };
-  openModal('문서 설정', el('div', {},
-    row('프로젝트명', inp(M, 'project', { onInput: lite })),
-    row('문서 유형', inp(M, 'docType', { onInput: lite })),
-    row('일자', inp(M, 'date', { ph: '2026.10.16', onInput: lite })),
-    row('PDF 파일명', inp(M, 'fileBase', { ph: 'bebop-{date}-mockup', onInput: () => {} })),
-    el('p', { class: 'hint' }, '{date}는 일자(YYMMDD), {v}는 전달 버전으로 바뀌어요. 예: bebop-261016-mockup'),
-    row('장표 배경색', colorInp(M, 'pageBg', lite)),
-    row('표지·마무리', colorInp(M, 'coverBg', lite)),
-    check('CONFIDENTIAL 표시', M.confidential, v => { commit(); M.confidential = v; renderPage(); }),
-    row('리스트 표기', seg([['stack', '색상 ↵ 소재 / 마감'], ['inline', '소재 / 마감 / 색상 한 줄']], M.specFormat, v => { commit(); M.specFormat = v; renderPage(); openSettings(); })),
-    check('지난 전달 이후 바뀐 항목에 △ 표시', M.showRevMarks, v => { commit(); M.showRevMarks = v; renderPage(); }),
-    row('연락처', inp(M, 'contact1', { onInput: lite })),
-    row('주소', inp(M, 'contact2', { onInput: lite })),
-    el('div', { class: 'row' }, el('label', {}, '로고'),
-      btn(M.logoId ? '로고 교체' : '로고 업로드 (검정 버전)', async () => { const [f] = await pickFile('image/*'); if (!f) return; const id = addImage(await readURL(f)); commit(); M.logoId = id; lite(); openSettings(); }),
-      M.logoId ? btn('기본 글자 로고', () => { commit(); M.logoId = null; lite(); openSettings(); }) : null),
-    el('p', { class: 'hint' }, '로고는 투명 배경의 검정 PNG/SVG를 올리면 어두운 장표에서 자동으로 흰색으로 바뀌어요.')),
-    [btn('닫기', () => { closeModal(); renderAll(); }, 'pri')]);
-}
-function openDeliver(){
-  const ch = changedSet(), next = (S.meta.version || 0) + 1, d = { to: '', date: todayStr(), memo: '' };
-  const summary = !S.meta.snapshot ? '첫 전달 기록이에요.' : `지난 전달(v${pad2(S.meta.version)}) 이후 변경 ${ch.size}건${ch.removed ? `, 삭제 ${ch.removed}건` : ''}.`;
-  openModal(`전달 완료 기록 — v${pad2(next)}`, el('div', {},
-    row('전달처', inp(d, 'to', { ph: '목업 업체명', onInput: () => {} })),
-    row('전달일', inp(d, 'date', { onInput: () => {} })),
-    row('메모', inp(d, 'memo', { multi: true, ph: '예: 다리 가동부 소재 변경 반영', onInput: () => {} })),
-    el('p', { class: 'hint' }, summary + ' 기록하면 지금 상태가 다음 비교 기준이 되고, 새 버전 이름으로 프로젝트 파일을 저장해요. 그다음 PDF 출력으로 전달용 PDF를 같은 폴더에 저장하세요.')),
-    [btn('취소', closeModal), btn('기록하고 저장', async () => {
-      undoS.push(JSON.stringify(S));
-      S.meta.deliveries.push({ v: next, to: d.to, date: d.date, memo: d.memo, changed: ch ? ch.size : null, removed: ch ? ch.removed : null, at: new Date().toISOString() });
-      S.meta.version = next; S.meta.snapshot = specSnapshot(); closeModal(); renderAll(); dirty();
-      const ok = await save(true); if (ok) toast(`v${pad2(next)} 기록 완료`, [['PDF 출력', printPdf]]);
-    }, 'pri')]);
-}
-function openHistory(){
-  const ds = S.meta.deliveries || [];
-  openModal('전달 기록', ds.length ? el('table', { class: 'hist' },
-    el('tr', {}, el('th', {}, '버전'), el('th', {}, '전달일'), el('th', {}, '전달처'), el('th', {}, '변경'), el('th', {}, '메모')),
-    [...ds].reverse().map(x => el('tr', {}, el('td', {}, 'v' + pad2(x.v)), el('td', {}, x.date), el('td', {}, x.to || '—'),
-      el('td', {}, x.changed == null ? '첫 전달' : `${x.changed}건${x.removed ? ` / 삭제 ${x.removed}` : ''}`), el('td', { style: { whiteSpace: 'pre-wrap' } }, x.memo || ''))))
-    : el('p', { class: 'hint' }, '아직 전달 기록이 없어요. 업체에 보낸 뒤 "전달 완료 기록"을 눌러 주세요.'),
-    [btn('닫기', closeModal, 'pri')]);
-}
+// ---------- inline text editing (cover footer, spec title) ----------
+let edC = false;
+const pw = $('#pageWrap');
+pw.addEventListener('focusin', e => { if (e.target.isContentEditable) edC = false; });
+pw.addEventListener('input', e => {
+  const t = e.target; if (!t.isContentEditable) return;
+  if (!edC){ commit(); edC = true; }
+  const v = t.textContent; if (!v) t.replaceChildren();
+  if (t.dataset.meta) S.meta[t.dataset.meta] = v; else if (t.dataset.title) curPage().title = v;
+  dirty();
+});
+pw.addEventListener('focusout', e => { if (!e.target.isContentEditable) return; if (e.target.dataset.title) renderPage(); renderSide(); });
+pw.addEventListener('keydown', e => { if (e.target.isContentEditable && e.key === 'Enter'){ e.preventDefault(); e.target.blur(); } });
+pw.addEventListener('paste', e => {
+  if (!e.target.isContentEditable) return;
+  e.preventDefault(); e.stopPropagation();
+  document.execCommand('insertText', false, (e.clipboardData.getData('text/plain') || '').replace(/\s*\n\s*/g, ' '));
+});
 
 // ---------- PDF ----------
 async function printPdf(){
@@ -1191,35 +1152,34 @@ window.addEventListener('afterprint', () => $('#print').replaceChildren());
 // ---------- global events ----------
 $('#pageWrap').addEventListener('pointerdown', onDown);
 $('#bNew').onclick = () => { if (!confirm('새 문서를 시작할까요? 저장하지 않은 내용은 사라져요.')) return; freshDoc(); renderAll(); };
-$('#bOpen').onclick = openDoc;
-$('#bSave').onclick = () => save(false);
-$('#bSaveAs').onclick = () => save(true);
+$('#bSave').onclick = e => save(e.shiftKey);
 $('#bUndo').onclick = undo; $('#bRedo').onclick = redo;
-$('#bSet').onclick = openSettings;
-$('#bDeliver').onclick = openDeliver;
-$('#bHist').onclick = openHistory;
 $('#bPdf').onclick = printPdf;
 window.addEventListener('resize', layout);
 const stage = $('#stage');
 stage.addEventListener('dragover', e => e.preventDefault());
 stage.addEventListener('drop', e => {
   e.preventDefault();
+  const js = [...e.dataTransfer.files].find(f => /\.json$/i.test(f.name));
+  if (js){ js.text().then(t => { loadDoc(JSON.parse(t)); fileHandle = null; renderAll(); toast('열었어요 · ' + js.name); }).catch(err => toast('열 수 없어요: ' + err.message)); return; }
   const fs = [...e.dataTransfer.files].filter(f => f.type.startsWith('image/')); if (!fs.length) return;
   const p = curPage();
   if (p.type === 'spec') setCapture(p, fs[0]); else if (p.type === 'render') setRenderImg(p, fs[0]); else addRenderPages(fs);
 });
 document.addEventListener('paste', e => {
-  const tag = document.activeElement && document.activeElement.tagName; if (tag === 'INPUT' || tag === 'TEXTAREA') return;
+  const ae = document.activeElement, tag = ae && ae.tagName; if (tag === 'INPUT' || tag === 'TEXTAREA' || (ae && ae.isContentEditable)) return;
   const item = [...(e.clipboardData ? e.clipboardData.items : [])].find(i => i.type.startsWith('image/')); if (!item) return;
   const f = item.getAsFile(), p = curPage(); e.preventDefault();
   if (p.type === 'spec') setCapture(p, f); else if (p.type === 'render') setRenderImg(p, f); else addRenderPages([f]);
 });
 document.addEventListener('keydown', e => {
-  const tag = document.activeElement && document.activeElement.tagName, typing = tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT';
+  const ae = document.activeElement, tag = ae && ae.tagName, typing = tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT' || (ae && ae.isContentEditable);
   const mod = e.ctrlKey || e.metaKey, k = e.key.toLowerCase();
+  if (k === 'escape' && !$('#pop').hidden){ closePop(); return; }
   if (mod && k === 's'){ e.preventDefault(); save(e.shiftKey); return; }
+  if (mod && k === 'o'){ e.preventDefault(); openDoc(); return; }
   if (mod && (k === 'z' || k === 'y')){ if (typing) return; e.preventDefault(); (k === 'y' || e.shiftKey) ? redo() : undo(); return; }
-  if (typing || mod || !$('#modal').hidden) return;
+  if (typing || mod) return;
   const p = curPage(); if (!p || p.type !== 'spec') return;
   if (k === 'v') setTool('select'); else if (k === 'l') setTool('lasso'); else if (k === 'a') setTool('add'); else if (k === 'm') setTool('move');
   else if (k === 'g') groupSel();
