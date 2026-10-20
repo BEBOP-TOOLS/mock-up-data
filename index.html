@@ -1133,14 +1133,14 @@ function renderPanel(){
   const p = curPage(); if (!p) return;
   const lite = () => { renderPage(); renderSide(); };
   secN = 0;
-  if (isEnd(p)){ P.append(sec(p.type === 'cover' ? 'Cover' : 'Closing', el('p', { class: 'hint' }, '배경을 클릭하면 배경색을 바꿀 수 있어요.'), p.type === 'cover' ? el('p', { class: 'hint' }, '하단의 텍스트를 클릭하면 바로 수정할 수 있어요.') : null)); return; }
+  if (isEnd(p)){ P.append(sec(p.type === 'cover' ? 'Cover' : 'Closing', el('p', { class: 'hint' }, '배경 길게 누르기 → 배경색'), p.type === 'cover' ? el('p', { class: 'hint' }, '하단 텍스트 클릭 → 수정') : null)); return; }
   if (p.type === 'render'){
     P.append(sec('Image',
       fileRow(p, f => setRenderImg(p, f), () => clearImage(p), iconBtn(ICON_CENTER, 'Reset view', () => { commit(); p.zoom = 1; p.px = 0; p.py = 0; renderAll(); })),
       p.imageId && p.nw ? range('Zoom', Math.round((p.zoom || 1)*100), 20, 800, 1, v => { zoomRender(p, v/100, { x: 960, y: 540 }); renderPage(); }, v => v + '%') : null,
       confCheck(p),
       bgRow(p, lite),
-      el('p', { class: 'hint' }, '이미지는 페이지를 꽉 채워 들어가요. 끌어서 옮기고, 이미지 위에서 스크롤하면 확대·축소돼요.'), el('p', { class: 'hint' }, '페이지의 "Subtitle"을 클릭해 소제목을 넣을 수 있어요. 비워두면 출력되지 않아요.')));
+      el('p', { class: 'hint' }, '드래그 → 이동 · 스크롤 → 확대/축소'), el('p', { class: 'hint' }, 'Subtitle 클릭 → 소제목 (비우면 미출력)')));
     return;
   }
   // ---- spec ----
@@ -1151,9 +1151,9 @@ function renderPanel(){
       const f = fitDims(p), cx = p.box.x + p.box.w/2, cy = p.box.y + p.box.h/2;
       p.box.w = f.w*v/100; p.box.h = f.h*v/100; p.box.x = cx - p.box.w/2; p.box.y = cy - p.box.h/2; renderPage(); }, v => v + '%') : null,
     confCheck(p),
-    el('p', { class: 'hint' }, '라이노 ViewCaptureToFile / ViewCaptureToClipboard로 만든 PNG를 쓰면 돼요. 붙여넣기(⌘V)도 됩니다.'),
-    el('p', { class: 'hint' }, '업로드할 때 모델 주변의 빈 여백을 자동으로 잘라내요. 그래서 뷰포트 크기가 달라도 장표에 같은 크기로 들어가요.'),
-    p.imageId ? el('p', { class: 'hint' }, '같은 구도로 새 이미지를 올리면 넘버와 사양이 위치 기준으로 유지돼요.') : null));
+    el('p', { class: 'hint' }, '라이노 ViewCapture PNG · ⌘V 붙여넣기 가능'),
+    el('p', { class: 'hint' }, '빈 여백 자동 정리 → 뷰포트 달라도 같은 크기'),
+    p.imageId ? el('p', { class: 'hint' }, '같은 구도로 교체 시 넘버·사양 유지') : null));
   if (p.imageId || p.parts.length){
     const um = unitMap(p), n = p.parts.length;
     const plist = el('div', { class: 'plist' });
@@ -1196,13 +1196,13 @@ function renderPanel(){
       plist,
       p.imageId ? el('button', { class: 'btn addpart' + (ui.tool === 'add' ? ' on' : ''), onclick: () => setTool(ui.tool === 'add' ? 'select' : 'add') },
         ui.tool === 'add' ? 'Click the part on the image… (Esc to cancel)' : '+ Add') : null,
-      el('p', { class: 'hint' }, '이미지를 올리면 부품을 찾아 자동으로 넘버를 붙여요. 가까이 붙은 조각은 처음부터 한 부품으로 묶여요.'), el('p', { class: 'hint' }, '빠른 선택 브러시(W)는 자동 인식보다 잘게, 조각 단위로 선택해요. 문지른 뒤 오른쪽에 나오는 Group(묶기) 또는 −(제외)를 고르세요. 한 조각만 골라 Group하면 묶음에서 떼어 따로 번호를 받아요. ⌥(Option)을 누른 채 문지르면 선택에서 빠지고, [ ] 키로 브러시 크기를 바꿔요.'),
-      el('p', { class: 'hint' }, '이미지에서 부품을 누르면 그 부품의 텍스트만, 페이지의 텍스트를 누르면 그 부품만 진하게 보여요(솔로 모드). 빈 곳을 누르거나 Esc로 해제해요.'),
-      el('p', { class: 'hint' }, '번호 순서: 가로줄 아이콘은 위→아래·왼→오른쪽, 세로줄 아이콘은 왼→오른쪽·위→아래예요. 손 아이콘을 누르고 이미지에서 부품을 1번부터 차례로 클릭하면 직접 순서를 정할 수 있어요(입력한 사양은 부품을 따라가요). 초기화 아이콘은 번호와 마커 위치를 다시 매겨요. 옆의 화살표는 실행 취소·다시 실행이에요.'),
-      el('p', { class: 'hint' }, '마커를 다른 마커 위에 놓으면 번호가 서로 바뀌어요. 마커를 클릭하면 화살표 끝점도 옮길 수 있어요.'),
-      el('p', { class: 'hint' }, '휴지통은 선택한 조각(또는 부품)을 제외해요(Del). 제외한 조각은 Excluded (개수) 옆 새로고침 아이콘으로 되살리고, 위치에 맞춰 넘버가 다시 매겨져요. Grouped 옆 숫자를 누르면 그 부품이 선택되고 오른쪽에 Ungroup이 나타나요.'),
-      el('p', { class: 'hint' }, '흐린 배경 부품은 휴지통(Del)으로 빼고, 너무 얇아 인식되지 않은 부품은 맨 아래 + Add를 누른 뒤 이미지에서 그 부품을 클릭해 추가하세요.'),
-      el('p', { class: 'hint' }, '페이지의 텍스트를 눌러 바로 수정할 수 있어요. 리스트 폭과 열 수는 텍스트 길이에 맞춰 자동으로 정해져요.')));
+      el('p', { class: 'hint' }, '브러시(W): 조각 단위 선택 → Group / − · ⌥ 빼기 · [ ] 크기'),
+      el('p', { class: 'hint' }, '≡ 행 순서 · ||| 열 순서 · ✋ 직접 지정 (사양 유지)'),
+      el('p', { class: 'hint' }, '초기화: 번호·마커 다시 배치'),
+      el('p', { class: 'hint' }, '마커 끼리 드롭 → 번호 교환 · 마커 클릭 → 화살표 끝 이동'),
+      el('p', { class: 'hint' }, '부품/텍스트 클릭 → 솔로 · Esc 해제'),
+      el('p', { class: 'hint' }, 'Grouped 숫자 → Ungroup · Excluded ⟳ → 복원'),
+      el('p', { class: 'hint' }, '인식 안 된 부품 → + Add 후 이미지 클릭')));
   }
   P.append(sec('Reference image · text',
     el('div', { class: 'row' }, btn('+ Image', () => addRef(p, 'image')), btn('+ Text', () => addRef(p, 'text'))),
@@ -1210,7 +1210,7 @@ function renderPanel(){
       rf.kind === 'image' ? el('img', { class: 'rthumb', src: IMG[rf.imageId] }) : el('span', { class: 'rthumb' }, 'T'),
       rf.kind === 'image' ? inp(rf, 'caption', { ph: '* Caption (optional)' }) : inp(rf, 'text', { multi: true, ph: 'Text' }),
       el('button', { class: 'ib', title: 'Delete', onclick: () => { commit(); p.refs = p.refs.filter(x => x !== rf); renderAll(); } }, '×'))),
-    el('p', { class: 'hint' }, '빈 자리를 찾아 자동으로 들어가요. 페이지에서 끌어서 옮기고, 오른쪽 아래 모서리로 크기를 조절하세요.')));
+    el('p', { class: 'hint' }, '빈 자리에 자동 배치 · 드래그 이동 · 모서리로 크기')));
   P.scrollTop = st;
 }
 const ICON_ROWS = '<svg viewBox="0 0 24 24"><path d="M4 7h16M4 12h16M4 17h16"/></svg>';
