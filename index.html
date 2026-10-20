@@ -95,6 +95,11 @@ textarea.in{resize:vertical;line-height:1.45}
 .file .ib{background:transparent}
 .file .ib:hover{background:var(--fill2)}
 .seg.ico{flex:none}
+.row.nw{flex-wrap:nowrap}
+.selact{margin-left:auto;display:flex;align-items:center;gap:4px}
+.selact .mut{font-size:11px;margin-right:2px;white-space:nowrap}
+[data-tip]{position:relative}
+[data-tip]:hover::after{content:attr(data-tip);position:absolute;top:calc(100% + 6px);left:50%;transform:translateX(-50%);background:var(--ink);color:#fff;font-size:11px;line-height:1;padding:5px 7px;border-radius:6px;white-space:nowrap;z-index:40;pointer-events:none;letter-spacing:0;text-transform:none}
 .seg.ico button{width:34px;padding:5px 0;display:grid;place-items:center}
 .seg.ico svg{width:16px;height:16px;fill:none;stroke:currentColor;stroke-width:1.7;stroke-linecap:round}
 .ptog{width:100%;display:flex;justify-content:space-between;margin-top:10px}
@@ -135,6 +140,7 @@ textarea.in{resize:vertical;line-height:1.45}
 .seg button{flex:1;border:0;background:transparent;border-radius:6px;padding:6px 6px;cursor:pointer;white-space:nowrap}
 .seg button:hover{background:rgba(255,255,255,.6)}
 .seg button.on{background:#fff;box-shadow:0 1px 2px rgba(0,0,0,.08)}
+.seg button:disabled{opacity:.3;cursor:default;background:transparent}
 .hint{color:var(--mut);font-size:11px;line-height:1.6;margin:10px 0 0}
 .sec h3 .hint{display:none}
 .stat{font-size:11px;color:var(--mut);margin-top:8px}
@@ -319,10 +325,10 @@ function defMeta(){ return {
   contact1: 'soohun@bebop.kr / rich@bebop.kr', contact2: '1F, 27, Toegye-ro 86ga-gil, Jung-gu, Seoul, Korea',
   logoId: null, version: 0, deliveries: [], snapshot: null
 }; }
-const DET = { merge: 10, minArea: 150 }; // 인식 기본값 — 가까운 조각은 한 부품으로
+const DET = { merge: 2, group: 10, minArea: 150 }; // 인식 기본값 — 조각은 잘게(merge) 찾고, 가까운 조각은 자동으로 한 부품으로 묶음(group)
 function newSpecPage(){ return {
   id: uid(), type: 'spec', title: '', bg: '', startNum: 1, imageId: null, nw: 0, nh: 0, box: null,
-  det: { bg: null, autoBg: null, tol: 26, merge: DET.merge, minArea: DET.minArea, knockout: false },
+  det: { bg: null, autoBg: null, tol: 26, merge: DET.merge, group: DET.group, minArea: DET.minArea, knockout: false },
   objects: [], groups: [], excluded: [], manual: [], parts: [], refs: [], listW: 760, listCols: 2, order: 'row', rowTol: 0.6
 }; }
 let S, IMG = {}, cur = 0, scale = 0.5;
@@ -401,7 +407,7 @@ async function openDoc(){
 }
 
 // ---------- detection ----------
-function rtKey(p){ const d = p.det; return [p.imageId, d.bg || '', d.tol, d.merge, d.minArea].join('|'); }
+function rtKey(p){ const d = p.det; return [p.imageId, d.bg || '', d.tol, d.merge, d.group || '', d.minArea].join('|'); }
 function ensureRT(p){
   const key = rtKey(p);
   if (RT[p.id] && RT[p.id].key === key) return Promise.resolve(RT[p.id]);
@@ -430,6 +436,18 @@ function dilate(m, W, H, r){
     for (let y = 0; y < H; y++){ if (s) o[y*W+x] = 1; const add = y+r+1, rem = y-r; if (add < H) s += t[add*W+x]; if (rem >= 0) s -= t[rem*W+x]; } }
   return o;
 }
+function labelComps(m, W, H){
+  const N = W*H, lab = new Int32Array(N), stack = new Int32Array(N); let n = 0;
+  for (let i = 0; i < N; i++){
+    if (!m[i] || lab[i]) continue;
+    n++; let sp = 0; stack[sp++] = i; lab[i] = n;
+    while (sp){ const p = stack[--sp]; const px = p % W, py = (p - px)/W;
+      for (let dy = -1; dy <= 1; dy++){ const yy = py+dy; if (yy < 0 || yy >= H) continue;
+        for (let dx = -1; dx <= 1; dx++){ const xx = px+dx; if (xx < 0 || xx >= W) continue;
+          const q = yy*W + xx; if (m[q] && !lab[q]){ lab[q] = n; stack[sp++] = q; } } } }
+  }
+  return { lab, n };
+}
 function analyzeImage(img, det){
   const nw = img.naturalWidth, nh = img.naturalHeight;
   const k = Math.min(1, 1400/Math.max(nw, nh));
@@ -448,24 +466,21 @@ function analyzeImage(img, det){
   }
   const f = Math.max(W, H)/1400;
   const r = Math.round(det.merge*f), dil = r > 0 ? dilate(mask, W, H, r) : mask;
-  const lab = new Int32Array(N), stack = new Int32Array(N); let n = 0;
-  for (let i = 0; i < N; i++){
-    if (!dil[i] || lab[i]) continue;
-    n++; let sp = 0; stack[sp++] = i; lab[i] = n;
-    while (sp){ const p = stack[--sp]; const px = p % W, py = (p - px)/W;
-      for (let dy = -1; dy <= 1; dy++){ const yy = py+dy; if (yy < 0 || yy >= H) continue;
-        for (let dx = -1; dx <= 1; dx++){ const xx = px+dx; if (xx < 0 || xx >= W) continue;
-          const q = yy*W + xx; if (dil[q] && !lab[q]){ lab[q] = n; stack[sp++] = q; } } } }
-  }
+  const { lab, n } = labelComps(dil, W, H);
+  // coarse pass: pieces that sit close together form one cluster (auto group); min size applies per cluster
+  const rc = Math.round((det.group || det.merge)*f), C = rc > r ? labelComps(dilate(mask, W, H, rc), W, H) : null;
   const cnt = new Int32Array(n+1), sx = new Float64Array(n+1), sy = new Float64Array(n+1);
   const x0 = new Int32Array(n+1).fill(1e9), y0 = new Int32Array(n+1).fill(1e9), x1 = new Int32Array(n+1).fill(-1), y1 = new Int32Array(n+1).fill(-1);
   for (let i = 0; i < N; i++){ if (!mask[i]) continue; const l = lab[i], x = i % W, y = (i - x)/W;
     cnt[l]++; sx[l] += x; sy[l] += y; if (x < x0[l]) x0[l] = x; if (y < y0[l]) y0[l] = y; if (x > x1[l]) x1[l] = x; if (y > y1[l]) y1[l] = y; }
+  const cg = new Int32Array(n+1);
+  if (C) for (let i = 0; i < N; i++) if (mask[i] && !cg[lab[i]]) cg[lab[i]] = C.lab[i];
+  const cArea = new Map(); for (let l = 1; l <= n; l++){ const g = C ? cg[l] : l; cArea.set(g, (cArea.get(g) || 0) + cnt[l]); }
   const remap = new Int32Array(n+1), objects = []; let id = 0;
   for (let l = 1; l <= n; l++){
-    if (cnt[l] < Math.max(1, det.minArea*f*f)) continue;
+    if (!cnt[l] || cArea.get(C ? cg[l] : l) < Math.max(1, det.minArea*f*f) || cnt[l] < 3) continue;
     id++; remap[l] = id;
-    objects.push({ id, cx: (sx[l]/cnt[l] + .5)/k, cy: (sy[l]/cnt[l] + .5)/k, bbox: [x0[l]/k, y0[l]/k, (x1[l]+1)/k, (y1[l]+1)/k], area: cnt[l]/(k*k), samples: [] });
+    objects.push({ id, cg: C ? cg[l] : 0, cx: (sx[l]/cnt[l] + .5)/k, cy: (sy[l]/cnt[l] + .5)/k, bbox: [x0[l]/k, y0[l]/k, (x1[l]+1)/k, (y1[l]+1)/k], area: cnt[l]/(k*k), samples: [] });
   }
   const bnd = objects.map(() => []);
   for (let y = 0; y < H; y++) for (let x = 0; x < W; x++){
@@ -491,7 +506,11 @@ function remapIds(p, oldObjs, r){
 function syncDetect(p, r){
   p.det.autoBg = r.transparent ? null : r.bg;
   if (sameObjects(p.objects, r.objects)){ p.objects = r.objects; return; }
-  if (p.objects.length) remapIds(p, p.objects, r); else { p.groups = []; p.excluded = []; }
+  if (p.objects.length) remapIds(p, p.objects, r);
+  else {   // fresh image: pieces of the same cluster start out grouped as one part
+    const by = new Map(); r.objects.forEach(o => { if (o.cg){ if (!by.has(o.cg)) by.set(o.cg, []); by.get(o.cg).push(o.id); } });
+    p.groups = [...by.values()].filter(g => g.length > 1); p.excluded = [];
+  }
   p.objects = r.objects; syncParts(p);
 }
 async function runDetect(p){
@@ -1116,7 +1135,7 @@ function renderPanel(){
   if (isEnd(p)){ P.append(sec(p.type === 'cover' ? 'Cover' : 'Closing', el('p', { class: 'hint' }, '배경을 클릭하면 배경색을 바꿀 수 있어요.'), p.type === 'cover' ? el('p', { class: 'hint' }, '하단의 텍스트를 클릭하면 바로 수정할 수 있어요.') : null)); return; }
   if (p.type === 'render'){
     P.append(sec('Image',
-      fileRow(p, f => setRenderImg(p, f), () => clearImage(p), iconBtn(ICON_CENTER, 'Reset view — fill and center', () => { commit(); p.zoom = 1; p.px = 0; p.py = 0; renderAll(); })),
+      fileRow(p, f => setRenderImg(p, f), () => clearImage(p), iconBtn(ICON_CENTER, 'Reset view', () => { commit(); p.zoom = 1; p.px = 0; p.py = 0; renderAll(); })),
       p.imageId && p.nw ? range('Zoom', Math.round((p.zoom || 1)*100), 20, 800, 1, v => { zoomRender(p, v/100, { x: 960, y: 540 }); renderPage(); }, v => v + '%') : null,
       confCheck(p),
       bgRow(p, lite),
@@ -1126,7 +1145,7 @@ function renderPanel(){
   // ---- spec ----
   const selN = ui.sel.size;
   P.append(sec('Image',
-    fileRow(p, f => setCapture(p, f), () => clearImage(p), iconBtn(ICON_CENTER, 'Center image', () => { commit(); fitBox(p); renderAll(); })),
+    fileRow(p, f => setCapture(p, f), () => clearImage(p), iconBtn(ICON_CENTER, 'Center', () => { commit(); fitBox(p); renderAll(); })),
     p.imageId ? range('Size', Math.round(p.box.w/fitDims(p).w*100), 30, 220, 1, v => {
       const f = fitDims(p), cx = p.box.x + p.box.w/2, cy = p.box.y + p.box.h/2;
       p.box.w = f.w*v/100; p.box.h = f.h*v/100; p.box.x = cx - p.box.w/2; p.box.y = cy - p.box.h/2; renderPage(); }, v => v + '%') : null,
@@ -1139,21 +1158,23 @@ function renderPanel(){
     const plist = el('div', { class: 'plist' });
     if (ui.partsOpen) p.parts.forEach((pt, ix) => plist.append(partRow(p, pt, ix, plist, um)));
     const ordering = ui.ordering && ui.ordering.pid === p.id;
-    const order = el('div', { class: 'seg ico' }, [['row', ICON_ROWS, 'Rows: top→bottom, left→right'], ['col', ICON_COLS, 'Columns: left→right, top→bottom'], ['manual', ICON_HAND, 'By hand: click parts 1, 2, 3… on the image']].map(([v, svg, tip]) => {
+    const order = el('div', { class: 'seg ico' }, [['row', ICON_ROWS, 'Rows'], ['col', ICON_COLS, 'Columns'], ['manual', ICON_HAND, 'By hand']].map(([v, svg, tip]) => {
       const on = v === 'manual' ? (ordering || p.order === 'manual') : (!ordering && p.order === v);
-      const b = el('button', { class: on ? 'on' : '', title: tip, onclick: () => {
+      const b = el('button', { class: on ? 'on' : '', 'data-tip': tip, onclick: () => {
         if (v === 'manual'){ if (ordering) finishOrder(false); else if (n) startOrder(p); return; }
         if (ordering) finishOrder(false);
         if (p.order === v) return; commit(); p.order = v; doNumber(p, true, true); } }); b.innerHTML = svg; return b; }));
     P.append(sec('Parts',
-      el('div', { class: 'row' }, el('div', { class: 'seg ico' }, [['select', ICON_SELECT, 'Select (V)'], ['brush', ICON_BRUSH, 'Quick selection brush (W) · ⌥ drag to subtract · [ ] brush size'], ['move', ICON_MOVE, 'Move image (M)']].map(([v, svg, tip]) => {
-        const b = el('button', { class: (ui.tool === 'add' || ui.tool === 'order' ? 'select' : ui.tool) === v ? 'on' : '', title: tip, onclick: () => setTool(v) }); b.innerHTML = svg; return b; }))),
-      el('div', { class: 'row wrap' }, order,
-        iconBtn(ICON_TRASH, 'Exclude selected (Del)', () => { if (ui.sel.size) excludeSel(); else if (ui.selPart) deletePart(p, ui.selPart); }),
+      el('div', { class: 'row nw' }, el('div', { class: 'seg ico' }, [['select', ICON_SELECT, 'Select · V'], ['brush', ICON_BRUSH, 'Quick select · W'], ['move', ICON_MOVE, 'Move · M']].map(([v, svg, tip]) => {
+        const b = el('button', { class: (ui.tool === 'add' || ui.tool === 'order' ? 'select' : ui.tool) === v ? 'on' : '', 'data-tip': tip, onclick: () => setTool(v) }); b.innerHTML = svg; return b; })),
+        selN ? el('div', { class: 'selact' }, el('span', { class: 'mut' }, selN + ' sel.'),
+          iconBtn(ICON_GROUP, 'Group', groupSel), iconBtn(ICON_MINUS, 'Exclude', excludeSel)) : null),
+      el('div', { class: 'row nw' }, order,
+        iconBtn(ICON_TRASH, 'Delete', () => { if (ui.sel.size) excludeSel(); else if (ui.selPart) deletePart(p, ui.selPart); }),
         iconBtn(ICON_REFRESH, '초기화', () => doNumber(p, true)),
-        Object.assign(iconBtn(ICON_UNDO, 'Undo (⌘Z)', undo), { id: 'bUndo', disabled: !undoS.length }),
-        Object.assign(iconBtn(ICON_REDO, 'Redo (⇧⌘Z)', redo), { id: 'bRedo', disabled: !redoS.length }),
-      ),
+        el('div', { class: 'seg ico' },
+          Object.assign(iconBtn(ICON_UNDO, 'Undo', undo), { id: 'bUndo', disabled: !undoS.length, className: '' }),
+          Object.assign(iconBtn(ICON_REDO, 'Redo', redo), { id: 'bRedo', disabled: !redoS.length, className: '' }))),
       ordering ? el('div', { class: 'ordbar' }, el('span', {}, `Click parts in order · ${ui.ordering.seq.length} / ${n}`),
         btn('Done', () => finishOrder(true), 'pri', !ui.ordering.seq.length), btn('Cancel', () => finishOrder(false))) : null,
       (() => {   // parts made by grouping several pieces — click a number to select it, then Ungroup appears
@@ -1165,7 +1186,7 @@ function renderPanel(){
           selG ? el('button', { class: 'gact', onclick: ungroupSel }, 'Ungroup') : null) : null;
       })(),
       p.excluded.length ? el('div', { class: 'grps' }, el('span', {}, 'Excluded'), el('span', { class: 'cnt' }, `(${p.excluded.length})`),
-        Object.assign(iconBtn(ICON_REFRESH, 'Restore excluded pieces', () => { commit(); p.excluded = []; syncParts(p); doNumber(p, false, true); }), { className: 'gref' })) : null,
+        Object.assign(iconBtn(ICON_REFRESH, 'Restore', () => { commit(); p.excluded = []; syncParts(p); doNumber(p, false, true); }), { className: 'gref' })) : null,
       range('Text size', Math.round((p.listScale || 1)*100), 60, 140, 1, v => { p.listScale = v/100; renderPage(); renderSide(); }, v => v + '%'),
       el('div', { class: 'stat' }, `${n} parts · ${selN} selected`),
       el('div', { id: 'ovf', class: 'warn', hidden: true }, 'The list overflows the page. Split the image across another specification page.'),
@@ -1173,7 +1194,7 @@ function renderPanel(){
       plist,
       p.imageId ? el('button', { class: 'btn addpart' + (ui.tool === 'add' ? ' on' : ''), onclick: () => setTool(ui.tool === 'add' ? 'select' : 'add') },
         ui.tool === 'add' ? 'Click the part on the image… (Esc to cancel)' : '+ Add') : null,
-      el('p', { class: 'hint' }, '이미지를 올리면 부품을 찾아 자동으로 넘버를 붙여요. 빠른 선택 브러시(W)로 여러 조각을 문지르면 한 부품으로 묶이고 넘버도 하나로 합쳐져요. ⌥(Option)을 누른 채 문지르면 선택에서 빠지고, [ ] 키로 브러시 크기를 바꿔요.'),
+      el('p', { class: 'hint' }, '이미지를 올리면 부품을 찾아 자동으로 넘버를 붙여요. 가까이 붙은 조각은 처음부터 한 부품으로 묶여요.'), el('p', { class: 'hint' }, '빠른 선택 브러시(W)는 자동 인식보다 잘게, 조각 단위로 선택해요. 문지른 뒤 오른쪽에 나오는 Group(묶기) 또는 −(제외)를 고르세요. 한 조각만 골라 Group하면 묶음에서 떼어 따로 번호를 받아요. ⌥(Option)을 누른 채 문지르면 선택에서 빠지고, [ ] 키로 브러시 크기를 바꿔요.'),
       el('p', { class: 'hint' }, '이미지에서 부품을 누르면 그 부품의 텍스트만, 페이지의 텍스트를 누르면 그 부품만 진하게 보여요(솔로 모드). 빈 곳을 누르거나 Esc로 해제해요.'),
       el('p', { class: 'hint' }, '번호 순서: 가로줄 아이콘은 위→아래·왼→오른쪽, 세로줄 아이콘은 왼→오른쪽·위→아래예요. 손 아이콘을 누르고 이미지에서 부품을 1번부터 차례로 클릭하면 직접 순서를 정할 수 있어요(입력한 사양은 부품을 따라가요). 초기화 아이콘은 번호와 마커 위치를 다시 매겨요. 옆의 화살표는 실행 취소·다시 실행이에요.'),
       el('p', { class: 'hint' }, '마커를 다른 마커 위에 놓으면 번호가 서로 바뀌어요. 마커를 클릭하면 화살표 끝점도 옮길 수 있어요.'),
@@ -1198,10 +1219,12 @@ const ICON_SELECT = '<svg viewBox="0 0 24 24"><path d="M6 3.5l12 9.2-5.6 1 3.1 6
 const ICON_BRUSH = '<svg viewBox="0 0 24 24"><circle cx="14.5" cy="8.5" r="5.5" stroke-dasharray="2.2 2.2"/><path d="M11 12.2 6.6 16.6"/><path d="M6.6 16.6c-1.6-.2-2.9 1-2.9 2.6 0 .8-.4 1.4-1 1.8 2.4.6 5.4-.4 5.4-2.8 0-.8-.6-1.5-1.5-1.6z"/></svg>';
 const ICON_MOVE = '<svg viewBox="0 0 24 24"><path d="M12 3v18M3 12h18M12 3 9.5 5.5M12 3l2.5 2.5M12 21l-2.5-2.5M12 21l2.5-2.5M3 12l2.5-2.5M3 12l2.5 2.5M21 12l-2.5-2.5M21 12l-2.5 2.5"/></svg>';
 const ICON_TRASH = '<svg viewBox="0 0 24 24"><path d="M4 7h16M10 11v6M14 11v6M6 7l1 12a2 2 0 0 0 2 2h6a2 2 0 0 0 2-2l1-12M9 7V4h6v3"/></svg>';
+const ICON_GROUP = '<svg viewBox="0 0 24 24"><rect x="3.5" y="3.5" width="17" height="17" rx="2" stroke-dasharray="2.5 2.5"/><rect x="7.5" y="7.5" width="5" height="5" rx="1"/><rect x="11.5" y="11.5" width="5" height="5" rx="1"/></svg>';
+const ICON_MINUS = '<svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="8.5"/><path d="M8 12h8"/></svg>';
 const ICON_UNDO = '<svg viewBox="0 0 24 24"><path d="M9 14 4 9l5-5"/><path d="M4 9h10.5a5.5 5.5 0 0 1 0 11H11"/></svg>';
 const ICON_REDO = '<svg viewBox="0 0 24 24"><path d="m15 14 5-5-5-5"/><path d="M20 9H9.5a5.5 5.5 0 0 0 0 11H13"/></svg>';
 const ICON_CENTER = '<svg viewBox="0 0 24 24"><rect x="7.5" y="7.5" width="9" height="9" rx="1.5"/><path d="M12 2.5v3M12 18.5v3M2.5 12h3M18.5 12h3"/></svg>';
-function iconBtn(svg, title, fn){ const b = el('button', { class: 'btn icon', title, onclick: fn }); b.innerHTML = svg; return b; }
+function iconBtn(svg, tip, fn){ const b = el('button', { class: 'btn icon', 'data-tip': tip, onclick: fn }); b.innerHTML = svg; return b; }
 // upload button, or the uploaded file name (click to replace) with a remove button
 function fileRow(p, onFile, onClear, extra){
   const pick = () => pickFile('image/*').then(f => f[0] && onFile(f[0]));
@@ -1294,16 +1317,16 @@ function selectObj(p, id, add){
   const ids = groupOf(p, id) || [id];
   if (add && ids.every(i => ui.sel.has(i))) ids.forEach(i => ui.sel.delete(i)); else ids.forEach(i => ui.sel.add(i));
 }
+// selected pieces become one part (a single piece is split out of its group); numbers follow position
 function groupSel(){
-  const p = curPage(), ids = selObjIds(); if (ids.length < 2){ toast('Select 2 or more objects'); return; }
+  const p = curPage(), ids = selObjIds(); if (!ids.length){ toast('Select pieces first'); return; }
   commit(); const set = new Set(ids);
-  p.groups = p.groups.map(g => g.filter(i => !set.has(i))).filter(g => g.length > 1); p.groups.push(ids);
+  p.groups = p.groups.map(g => g.filter(i => !set.has(i))).filter(g => g.length > 1); if (ids.length > 1) p.groups.push(ids);
   p.excluded = p.excluded.filter(i => !set.has(i)); syncParts(p);
-  const key = 'k' + [...ids].sort((a, b) => a - b).join('.');
-  let pt = p.parts.find(x => x.key === key);
-  if (!pt && p.parts.length){ pt = newPart(key); p.parts.push(pt); }
-  if (pt){ pt.label = null; placeMarkers(p, false); ui.selPart = pt.uid; }
-  renderAll(); toast(pt ? `Grouped ${ids.length} pieces → part ${p.startNum + p.parts.indexOf(pt)}` : `Grouped ${ids.length} pieces into one part`);
+  const key = 'k' + [...ids].sort((a, b) => a - b).join('.'), pt = p.parts.find(x => x.key === key);
+  if (pt) pt.label = null;
+  ui.sel.clear(); doNumber(p, false, true);
+  toast(ids.length > 1 ? `Grouped ${ids.length} pieces into one part` : 'Split into its own part');
 }
 function ungroupSel(){ const p = curPage(), set = new Set(selObjIds()); commit(); p.groups = p.groups.filter(g => !g.some(i => set.has(i))); syncParts(p); ui.sel.clear(); ui.selPart = null; doNumber(p, false, true); }
 function excludeSel(){
@@ -1460,7 +1483,7 @@ function onDown(e){
     }
     case 'brush': {
       // quick selection: paint over pieces to select them (⌥ subtracts); several pieces become one part
-      const sub = e.altKey, BR = ui.brush || 18, k = p.box.w/p.nw, touched = new Set();
+      const sub = e.altKey, BR = ui.brush || 10, k = p.box.w/p.nw, touched = new Set();
       if (!sub && !e.shiftKey) ui.sel.clear();
       const pts = [P], ls = $('.lasso'), path = sv('polyline', { fill: 'none', stroke: sub ? 'rgba(37,99,235,.3)' : 'rgba(230,0,18,.28)', 'stroke-width': BR*2, 'stroke-linecap': 'round', 'stroke-linejoin': 'round' });
       ls.append(path);
@@ -1479,8 +1502,8 @@ function onDown(e){
       paint(P); path.setAttribute('points', P.x + ',' + P.y + ' ' + (P.x + .1) + ',' + P.y);
       startDrag(e, Q => { pts.push(Q); paint(Q); path.setAttribute('points', pts.map(q => q.x + ',' + q.y).join(' ')); },
         () => {
-          for (const v of touched){ const ids = typeof v === 'number' ? (groupOf(p, v) || [v]) : [v]; ids.forEach(i => sub ? ui.sel.delete(i) : ui.sel.add(i)); }
-          if (!sub && selObjIds().length > 1) groupSel(); else renderAll();
+          for (const v of touched) sub ? ui.sel.delete(v) : ui.sel.add(v);   // pieces only — finer than the auto groups
+          ui.selPart = null; renderAll();
         });
       break;
     }
@@ -1641,7 +1664,7 @@ $('#present').addEventListener('click', e => presGo(e.clientX < innerWidth/3 ? -
 document.addEventListener('fullscreenchange', () => { if (!document.fullscreenElement) presEnd(); });
 
 // ---------- resizable side bars ----------
-const SIDE = { L: { v: '--lw', min: 160, max: 400, def: 220 }, R: { v: '--rw', min: 300, max: 680, def: 390 } };
+const SIDE = { L: { v: '--lw', min: 160, max: 400, def: 220 }, R: { v: '--rw', min: 340, max: 680, def: 390 } };
 function setSide(k, w){ const c = SIDE[k]; w = clamp(Math.round(w), c.min, c.max); $('#app').style.setProperty(c.v, w + 'px'); return w; }
 for (const k of ['L', 'R']){
   try { const w = +localStorage.getItem('bebop-side-' + k); if (w) setSide(k, w); } catch(e){}
@@ -1702,7 +1725,7 @@ document.addEventListener('keydown', e => {
   if (typing || mod) return;
   const p = curPage(); if (!p || p.type !== 'spec') return;
   if (k === 'v') setTool('select'); else if (k === 'w' || k === 'l') setTool('brush'); else if (k === 'm') setTool('move');
-  else if (k === '[' || k === ']'){ ui.brush = clamp((ui.brush || 18) + (k === ']' ? 4 : -4), 6, 80); toast('Brush size ' + ui.brush); }
+  else if (k === '[' || k === ']'){ ui.brush = clamp((ui.brush || 10) + (k === ']' ? 3 : -3), 3, 60); toast('Brush size ' + ui.brush); }
   else if (k === 'g') groupSel();
   else if (k === 'delete' || k === 'backspace'){ e.preventDefault(); if (ui.sel.size) excludeSel(); else if (ui.selPart) deletePart(p, ui.selPart); }
   else if (k === 'escape'){ if (ui.ordering){ finishOrder(false); return; } ui.sel.clear(); ui.selPart = null; ui.selRef = null; if (ui.tool === 'add') ui.tool = 'select'; renderAll(); }
