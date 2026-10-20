@@ -1012,7 +1012,6 @@ function renderPanel(){
       el('p', { class: 'hint' }, '참고 사진이나 흐린 배경 부품은 제외하고, 너무 얇아 인식되지 않은 부품은 Add로 직접 추가하세요.')));
     P.append(sec('Numbering',
       seg([['row', 'Rows  top→bottom, left→right'], ['col', 'Columns  left→right, top→bottom']], p.order, v => { commit(); p.order = v; renderPanel(); }),
-      range('Row band', p.rowTol, 0.1, 3, 0.1, v => { p.rowTol = v; }, v => '×' + Number(v).toFixed(1)),
       el('div', { class: 'row wrap' },
         btn(p.parts.length ? 'Renumber' : 'Number parts', () => doNumber(p), 'pri'),
         p.parts.length ? btn('Auto-place markers', () => { commit(); placeMarkers(p, true); renderAll(); }) : null),
