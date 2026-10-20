@@ -87,6 +87,16 @@ textarea.in{resize:vertical;line-height:1.45}
 .btn.pri{background:var(--fill2)}
 .btn.pri:hover{background:#d4d4d8}
 .btn:disabled{opacity:.4;cursor:default;background:var(--fill)}
+.btn.icon{padding:0;width:34px;height:34px;display:grid;place-items:center;flex:none}
+.btn.icon svg{width:17px;height:17px;fill:none;stroke:currentColor;stroke-width:1.7;stroke-linecap:round;stroke-linejoin:round}
+.file{flex:1;min-width:0;display:flex;align-items:center;gap:4px;background:var(--fill);border-radius:8px;height:34px;padding:0 4px 0 11px}
+.file .fname{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;cursor:pointer}
+.file .fname:hover{text-decoration:underline}
+.file .ib{background:transparent}
+.file .ib:hover{background:var(--fill2)}
+.sec h3.tog{cursor:pointer;user-select:none}
+.sec h3 .caret{margin-left:auto;color:var(--mut);text-transform:none;font-size:14px;line-height:1}
+.sec h3.tog:hover .caret{color:var(--ink)}
 .seg{display:flex;background:var(--fill);border-radius:9px;padding:3px;gap:2px;flex-wrap:wrap;flex:1}
 .seg button{flex:1;border:0;background:transparent;border-radius:6px;padding:6px 6px;cursor:pointer;white-space:nowrap}
 .seg button:hover{background:rgba(255,255,255,.6)}
@@ -128,10 +138,10 @@ input[type=color]{width:32px;height:30px;border:0;border-radius:7px;padding:3px;
 .pg-list{position:absolute;left:62px;column-gap:36px;column-fill:auto;overflow:hidden}
 .li{break-inside:avoid;padding-bottom:24px}
 .li-h{display:flex;align-items:center;gap:12px;font-size:22px;font-weight:700;margin-bottom:5px}
-.li-dot{width:32px;height:32px;border-radius:50%;background:var(--red);color:#fff;font-size:17px;font-weight:700;display:grid;place-items:center;flex:none}
-.li-b{padding-left:44px;font-size:18.5px;line-height:1.6;font-weight:500}
+.li-dot{width:26px;height:26px;border-radius:50%;background:var(--red);color:#fff;font-size:16px;font-weight:700;display:grid;place-items:center;flex:none}
+.li-b{padding-left:38px;font-size:18.5px;line-height:1.6;font-weight:500}
 .li.on .li-h span:last-child{box-shadow:inset 0 -6px 0 rgba(230,0,18,.25)}
-.li .rev{color:var(--red);font-size:16px}
+.li .ghost{opacity:.3}
 .cap,.det{position:absolute;pointer-events:none}
 .det{image-rendering:pixelated;opacity:.95}
 .dropz{position:absolute;border-radius:24px;display:grid;place-items:center;text-align:center;color:#71717a;font-size:24px;line-height:1.6;cursor:pointer;background:rgba(0,0,0,.05);font-family:var(--ui)}
@@ -147,10 +157,10 @@ input[type=color]{width:32px;height:30px;border:0;border-radius:7px;padding:3px;
 .inter .ref:hover .ref-x,.inter .ref.on .ref-x{display:grid;place-items:center;position:absolute;right:-14px;top:-14px;width:28px;height:28px;border-radius:50%;border:0;background:var(--red);color:#fff;font-size:20px;cursor:pointer;padding:0}
 .mk-layer,.lasso{position:absolute;inset:0;width:1920px;height:1080px;pointer-events:none;overflow:visible}
 .inter .mk{pointer-events:auto;cursor:grab}
-.mk.on circle{stroke:#111;stroke-width:3}
+.mk.on circle{stroke:#111;stroke-width:2}
 .anc{pointer-events:auto;cursor:move}
 .inter .li{cursor:pointer}
-#pageWrap.t-lasso .page,#pageWrap.t-add .page,#pageWrap.t-pick .page{cursor:crosshair}
+#pageWrap.t-lasso .page,#pageWrap.t-add .page{cursor:crosshair}
 #pageWrap.t-move .page{cursor:move}
 .cv-logo{position:absolute;inset:0;display:grid;place-items:center}
 .inter [contenteditable]{outline:none;border-radius:6px;cursor:text;user-select:text}
@@ -263,7 +273,7 @@ function toast(msg, actions = []){
 
 // ---------- state ----------
 const TYPE_LABEL = { cover: 'cover', render: 'rendering', spec: 'specification', closing: 'closing' };
-const MR = 20; // 마커 반지름(px, 1920 기준)
+const MR = 9; // 마커 반지름(px, 1920 기준)
 function defMeta(){ return {
   project: 'BEBOP DESIGN PROJECT', docType: 'MOCK UP', date: todayStr(), fileBase: 'bebop-{date}-mockup',
   pageBg: '#e4e4e4', coverBg: '#000000', confidential: true, specFormat: 'stack', showRevMarks: false,
@@ -276,7 +286,7 @@ function newSpecPage(){ return {
   objects: [], groups: [], excluded: [], manual: [], parts: [], refs: [], listW: 760, listCols: 2, order: 'row', rowTol: 0.6
 }; }
 let S, IMG = {}, cur = 0, scale = 0.5;
-const ui = { tool: 'select', sel: new Set(), selPart: null, showDet: true, selRef: null };
+const ui = { partsOpen: false, tool: 'select', sel: new Set(), selPart: null, showDet: true, selRef: null };
 const RT = {}, RTp = {}; const imgCache = new Map(), cleanCache = new Map(), cleanReady = new Map();
 let fileHandle = null;
 const undoS = [], redoS = [];
@@ -526,7 +536,7 @@ function hitFg(r, x, y, rad){
 function placeMarkers(p, all){
   if (!p.box) return;
   const r = RT[p.id], um = unitMap(p), units = [...um.values()];
-  const s = p.box.w/p.nw, off = 62/s, R = (MR + 4)/s, placed = [];
+  const s = p.box.w/p.nw, off = 40/s, R = (MR + 4)/s, placed = [];
   if (!all) p.parts.forEach(pt => { if (pt.label) placed.push(pt.label); });
   for (const pt of p.parts){
     if (!all && pt.label) continue;
@@ -634,6 +644,44 @@ function zoomRender(p, z, P){
   const x = P.x - (P.x - r0.x)*k, y = P.y - (P.y - r0.y)*k;
   p.zoom = z; p.px = x - (1920 - r0.w*k)/2; p.py = y - (1080 - r0.h*k)/2;
 }
+// one entry of the parts list; while editing, empty fields show a faint example
+const EX = { name: 'Top cover', color: 'PANTONE Cool Gray 11 U', mf: 'ABS / Matte paint' };
+function listItem(p, pt, ix, inter){
+  const g = t => inter ? el('span', { class: 'ghost' }, t) : null, j = (...a) => a.map(x => (x || '').trim()).filter(Boolean).join(' / ');
+  let lines;
+  if (S.meta.specFormat === 'inline') lines = specLines(pt);
+  else {
+    lines = [(pt.color || '').trim() || g(EX.color), j(pt.material, pt.finish) || g(EX.mf)];
+    (pt.note || '').split('\n').map(x => x.trim()).filter(Boolean).forEach(x => lines.push(x.startsWith('*') ? x : '* ' + x));
+    lines = lines.filter(Boolean);
+  }
+  return el('div', { class: 'li' + (inter && ui.selPart === pt.uid ? ' on' : ''), 'data-part': inter ? pt.uid : null },
+    el('div', { class: 'li-h' }, el('span', { class: 'li-dot' }, p.startNum + ix), el('span', {}, (pt.name || '').trim() || g(EX.name))),
+    el('div', { class: 'li-b' }, lines.map((l, k) => k ? [el('br'), l] : l)));
+}
+// size the list from its text: column width = widest entry, columns = as few as fit the page height
+function autoList(p){
+  const top = listTop(p), H = 985 - top, GAP = 36, MAXW = 560;
+  let w = 0, cols = 1;
+  if (p.parts.length){
+    const host = el('div', { class: 'page', style: { position: 'absolute', left: '-20000px', top: '0', height: 'auto', width: '3000px', visibility: 'hidden' } });
+    const items = p.parts.map((pt, ix) => listItem(p, pt, ix, true));
+    items.forEach(it => { it.style.width = 'max-content'; it.style.maxWidth = MAXW + 'px'; host.append(it); });
+    document.body.append(host);
+    w = Math.max(240, ...items.map(it => Math.ceil(it.getBoundingClientRect().width)));
+    items.forEach(it => { it.style.width = w + 'px'; it.style.maxWidth = ''; });
+    const hs = items.map(it => it.getBoundingClientRect().height);
+    host.remove();
+    let used = 0;
+    for (const h of hs){ if (used > 0 && used + h > H){ cols++; used = h; } else used += h; }
+    cols = Math.min(cols, 3);
+  }
+  const listW = p.parts.length ? cols*w + (cols - 1)*GAP : 0;
+  if (listW === p.listW && cols === p.listCols) return;
+  const fitted = p.box && ['x', 'y', 'w', 'h'].every(k => Math.abs(p.box[k] - fitDims(p)[k]) < 1.5);
+  p.listW = listW; p.listCols = cols;
+  if (fitted) fitBox(p);
+}
 function buildPage(p, i, inter){
   const bg = pageBg(p), dark = isDark(bg);
   const page = el('div', { class: 'page' + (inter ? ' inter' : ''), style: { background: bg, color: dark ? '#fff' : '#111' } });
@@ -665,11 +713,7 @@ function buildPage(p, i, inter){
   titleEl(page, p, inter);
   const top = listTop(p);
   const list = el('div', { class: 'pg-list', style: { top: top + 'px', width: p.listW + 'px', height: (985 - top) + 'px', columnCount: p.listCols } });
-  p.parts.forEach((pt, ix) => {
-    list.append(el('div', { class: 'li' + (inter && ui.selPart === pt.uid ? ' on' : ''), 'data-part': inter ? pt.uid : null },
-      el('div', { class: 'li-h' }, el('span', { class: 'li-dot' }, p.startNum + ix), el('span', {}, pt.name || (inter ? 'Part name' : ''))),
-      el('div', { class: 'li-b' }, specLines(pt).map((l, k) => k ? [el('br'), l] : l))));
-  });
+  p.parts.forEach((pt, ix) => list.append(listItem(p, pt, ix, inter)));
   page.append(list);
   if (p.imageId && p.box){
     const bs = { left: p.box.x + 'px', top: p.box.y + 'px', width: p.box.w + 'px', height: p.box.h + 'px' };
@@ -699,7 +743,7 @@ function buildPage(p, i, inter){
 }
 function drawMarkers(svg, p, inter){
   svg.replaceChildren();
-  const defs = sv('defs'), m = sv('marker', { id: 'ah', viewBox: '0 0 10 10', refX: '8', refY: '5', markerWidth: '5', markerHeight: '5', orient: 'auto-start-reverse' });
+  const defs = sv('defs'), m = sv('marker', { id: 'ah', viewBox: '0 0 10 10', refX: '8', refY: '5', markerWidth: '4.5', markerHeight: '4.5', orient: 'auto-start-reverse' });
   m.append(sv('path', { d: 'M0,0 L10,5 L0,10 z', fill: '#e60012' })); defs.append(m); svg.append(defs);
   if (!p.box) return;
   p.parts.forEach((pt, ix) => {
@@ -707,13 +751,13 @@ function drawMarkers(svg, p, inter){
     const L = toPg(p, pt.label), g = sv('g', { class: 'mk' + (inter && ui.selPart === pt.uid ? ' on' : '') });
     if (inter) g.setAttribute('data-mk', pt.uid);
     if (pt.anchor){ const A = toPg(p, pt.anchor), dx = A.x - L.x, dy = A.y - L.y, d = Math.hypot(dx, dy);
-      if (d > MR + 8){ const ux = dx/d, uy = dy/d;
-        g.append(sv('line', { x1: L.x + ux*(MR + 2), y1: L.y + uy*(MR + 2), x2: A.x - ux*2, y2: A.y - uy*2, stroke: '#e60012', 'stroke-width': '2.5', 'marker-end': 'url(#ah)' })); } }
+      if (d > MR + 6){ const ux = dx/d, uy = dy/d;
+        g.append(sv('line', { x1: L.x + ux*(MR + 2), y1: L.y + uy*(MR + 2), x2: A.x - ux*2, y2: A.y - uy*2, stroke: '#e60012', 'stroke-width': '1.4', 'marker-end': 'url(#ah)' })); } }
     g.append(sv('circle', { cx: L.x, cy: L.y, r: MR, fill: '#e60012' }));
-    const t = sv('text', { x: L.x, y: L.y + 1, 'text-anchor': 'middle', 'dominant-baseline': 'central', fill: '#fff', 'font-size': '19', 'font-weight': '700', 'font-family': 'Pretendard, sans-serif' });
+    const t = sv('text', { x: L.x, y: L.y + 1, 'text-anchor': 'middle', 'dominant-baseline': 'central', fill: '#fff', 'font-size': '10.5', 'font-weight': '700', 'font-family': 'Pretendard, sans-serif' });
     t.textContent = p.startNum + ix; g.append(t); svg.append(g);
     if (inter && ui.selPart === pt.uid && pt.anchor){ const A = toPg(p, pt.anchor);
-      svg.append(sv('circle', { cx: A.x, cy: A.y, r: 8, fill: '#fff', stroke: '#e60012', 'stroke-width': '3', class: 'anc', 'data-anc': pt.uid })); }
+      svg.append(sv('circle', { cx: A.x, cy: A.y, r: 6, fill: '#fff', stroke: '#e60012', 'stroke-width': '2', class: 'anc', 'data-anc': pt.uid })); }
   });
 }
 function drawOverlay(canvas, p, r){
@@ -755,6 +799,7 @@ function renderAll(){ renderSide(); renderPanel(); renderPage(); }
 function renderPage(){
   const w = $('#pageWrap'); w.replaceChildren(); w.className = 't-' + ui.tool;
   const p = curPage(); if (!p) return;
+  if (p.type === 'spec') autoList(p);
   const pg = buildPage(p, cur, true); w.append(pg);
   if (p.type === 'spec') checkOverflow(pg);
   updateTop();
@@ -825,12 +870,12 @@ async function addRenderPages(files){
   if (!files || !files.length) return;
   commit(); let at = insertIdx();
   for (const f of files){ const id = addImage(await readURL(f)), img = await getImg(id);
-    S.pages.splice(at, 0, { id: uid(), type: 'render', imageId: id, nw: img.naturalWidth, nh: img.naturalHeight, title: '', bg: '' }); cur = at; at++; }
+    S.pages.splice(at, 0, { id: uid(), type: 'render', imageId: id, fileName: f.name, nw: img.naturalWidth, nh: img.naturalHeight, title: '', bg: '' }); cur = at; at++; }
   renderAll(); toast(`Added ${files.length} rendering page${files.length > 1 ? 's' : ''}`);
 }
 async function setRenderImg(p, file){
   const id = addImage(await readURL(file)), img = await getImg(id); commit();
-  Object.assign(p, { imageId: id, nw: img.naturalWidth, nh: img.naturalHeight, zoom: 1, px: 0, py: 0 }); renderAll();
+  Object.assign(p, { imageId: id, fileName: file.name || 'Pasted image.png', nw: img.naturalWidth, nh: img.naturalHeight, zoom: 1, px: 0, py: 0 }); renderAll();
 }
 // Viewport captures differ per person (window size, DPI, empty margins).
 // Trim the empty background around the model and cap the size, so every capture lands at the same scale on the page.
@@ -861,7 +906,7 @@ async function setCapture(p, file){
   let url = await readURL(file), note = '';
   const n = await normalizeCapture(url); url = n.url; if (n.trimmed) note = ` · trimmed ${n.w}×${n.h} → ${n.ow}×${n.oh}`;
   const id = addImage(url), img = await getImg(id);
-  commit();
+  commit(); p.fileName = file.name || 'Pasted image.png';
   const had = !!p.imageId, nw = img.naturalWidth, nh = img.naturalHeight;
   if (had){
     const same = Math.abs(nw/nh - p.nw/p.nh) < 0.01;
@@ -927,9 +972,8 @@ function renderPanel(){
   secN = 0;
   if (isEnd(p)){ P.append(sec(p.type === 'cover' ? 'Cover' : 'Closing', el('p', { class: 'hint' }, '배경을 클릭하면 배경색을 바꿀 수 있어요.'), p.type === 'cover' ? el('p', { class: 'hint' }, '하단의 텍스트를 클릭하면 바로 수정할 수 있어요.') : null)); return; }
   if (p.type === 'render'){
-    P.append(sec('Rendering',
-      el('div', { class: 'row' }, btn('Upload image', () => pickFile('image/*').then(f => f[0] && setRenderImg(p, f[0])), 'pri'),
-        p.imageId ? btn('Reset view', () => { commit(); p.zoom = 1; p.px = 0; p.py = 0; renderAll(); }) : null),
+    P.append(sec('Image',
+      fileRow(p, f => setRenderImg(p, f), () => clearImage(p), iconBtn(ICON_CENTER, 'Reset view — fill and center', () => { commit(); p.zoom = 1; p.px = 0; p.py = 0; renderAll(); })),
       p.imageId && p.nw ? range('Zoom', Math.round((p.zoom || 1)*100), 20, 800, 1, v => { zoomRender(p, v/100, { x: 960, y: 540 }); renderPage(); }, v => v + '%') : null,
       confCheck(p),
       bgRow(p, lite),
@@ -938,10 +982,8 @@ function renderPanel(){
   }
   // ---- spec ----
   const selN = ui.sel.size;
-  P.append(sec('Capture',
-    el('div', { class: 'row' },
-      btn('Upload image', () => pickFile('image/*').then(f => f[0] && setCapture(p, f[0])), 'pri'),
-      p.imageId ? btn('Re-center', () => { commit(); fitBox(p); renderAll(); }) : null),
+  P.append(sec('Image',
+    fileRow(p, f => setCapture(p, f), () => clearImage(p), iconBtn(ICON_CENTER, 'Center image', () => { commit(); fitBox(p); renderAll(); })),
     p.imageId ? range('Size', Math.round(p.box.w/fitDims(p).w*100), 30, 220, 1, v => {
       const f = fitDims(p), cx = p.box.x + p.box.w/2, cy = p.box.y + p.box.h/2;
       p.box.w = f.w*v/100; p.box.h = f.h*v/100; p.box.x = cx - p.box.w/2; p.box.y = cy - p.box.h/2; renderPage(); }, v => v + '%') : null,
@@ -950,14 +992,8 @@ function renderPanel(){
     el('p', { class: 'hint' }, '업로드할 때 모델 주변의 빈 여백을 자동으로 잘라내요. 그래서 뷰포트 크기가 달라도 장표에 같은 크기로 들어가요.'),
     p.imageId ? el('p', { class: 'hint' }, '같은 구도로 새 이미지를 올리면 넘버와 사양이 위치 기준으로 유지돼요.') : null));
   if (p.imageId){
-    const bgHex = p.det.bg || p.det.autoBg;
     const det = (key) => (v, fin) => { p.det[key] = v; if (fin) runDetect(p); };
     P.append(sec('Detection',
-      el('div', { class: 'row' }, el('label', {}, 'Background'),
-        el('span', { class: 'sw', style: { background: bgHex || 'repeating-conic-gradient(#ccc 0 25%,#fff 0 50%) 0 0/10px 10px' } }),
-        el('span', { class: 'mut' }, p.det.bg ? 'Manual' : (bgHex ? 'Auto' : 'Transparent')),
-        btn('Eyedropper', () => setTool('pick'), ui.tool === 'pick' ? 'pri' : ''),
-        p.det.bg ? btn('Auto', () => { commit(); p.det.bg = null; runDetect(p); }) : null),
       range('Tolerance', p.det.tol, 4, 120, 1, det('tol')),
       range('Merge', p.det.merge, 0, 24, 1, det('merge'), v => v + 'px'),
       range('Min size', p.det.minArea, 0, 3000, 10, det('minArea')),
@@ -983,13 +1019,18 @@ function renderPanel(){
       el('p', { class: 'hint' }, 'R/L 부품이 좌우 열로 나뉜 배치는 Columns가 맞아요.'), el('p', { class: 'hint' }, '번호를 바꾸려면 마커를 다른 마커 위에 놓거나(서로 교환) 아래 리스트를 끌어 올리세요. 마커를 클릭하면 화살표 끝점도 옮길 수 있어요.')));
   }
   const plist = el('div', { class: 'plist' });
-  p.parts.forEach((pt, ix) => plist.append(partRow(p, pt, ix, plist)));
-  P.append(sec('Parts list',
-    row('Columns', seg([[1, '1'], [2, '2'], [3, '3']], p.listCols, v => { commit(); p.listCols = v; renderAll(); })),
-    range('Width', p.listW, 400, 1300, 10, v => { p.listW = v; renderPage(); }, v => v + 'px'),
-    el('div', { id: 'ovf', class: 'warn', hidden: true }, 'The list overflows the page. Add columns, widen the list, or split the capture across another specification page.'),
-    p.parts.length ? null : el('div', { class: 'stat' }, 'Number the parts to fill this list.'),
-    plist));
+  if (ui.partsOpen) p.parts.forEach((pt, ix) => plist.append(partRow(p, pt, ix, plist)));
+  const ps = sec('Parts list',
+    el('div', { id: 'ovf', class: 'warn', hidden: true }, 'The list overflows the page. Split the image across another specification page.'),
+    el('div', { class: 'stat' }, p.parts.length ? `${p.parts.length} parts` : 'Number the parts to fill this list.'),
+    el('p', { class: 'hint' }, '리스트의 폭과 열 수는 입력한 텍스트 길이에 맞춰 자동으로 정해져요.'),
+    el('p', { class: 'hint' }, '비어 있는 항목은 페이지에 예시가 흐리게 표시되고, PDF에는 나오지 않아요.'),
+    plist);
+  const h3 = ps.firstChild; h3.classList.add('tog');
+  h3.insertBefore(el('span', { class: 'caret' }, ui.partsOpen ? '−' : '+'), h3.querySelector('.info'));
+  const inf = h3.querySelector('.info'); if (inf){ inf.style.marginLeft = '8px'; inf.addEventListener('click', e => e.stopPropagation()); }
+  h3.addEventListener('click', () => { ui.partsOpen = !ui.partsOpen; renderPanel(); });
+  P.append(ps);
   P.append(sec('Reference image · text',
     el('div', { class: 'row' }, btn('+ Image', () => addRef(p, 'image')), btn('+ Text', () => addRef(p, 'text'))),
     p.refs.map(rf => el('div', { class: 'rrow' },
@@ -998,6 +1039,23 @@ function renderPanel(){
       el('button', { class: 'ib', title: 'Delete', onclick: () => { commit(); p.refs = p.refs.filter(x => x !== rf); renderAll(); } }, '×'))),
     el('p', { class: 'hint' }, '빈 자리를 찾아 자동으로 들어가요. 페이지에서 끌어서 옮기고, 오른쪽 아래 모서리로 크기를 조절하세요.')));
   P.scrollTop = st;
+}
+const ICON_CENTER = '<svg viewBox="0 0 24 24"><rect x="7.5" y="7.5" width="9" height="9" rx="1.5"/><path d="M12 2.5v3M12 18.5v3M2.5 12h3M18.5 12h3"/></svg>';
+function iconBtn(svg, title, fn){ const b = el('button', { class: 'btn icon', title, onclick: fn }); b.innerHTML = svg; return b; }
+// upload button, or the uploaded file name (click to replace) with a remove button
+function fileRow(p, onFile, onClear, extra){
+  const pick = () => pickFile('image/*').then(f => f[0] && onFile(f[0]));
+  if (!p.imageId) return el('div', { class: 'row' }, btn('Upload', pick, 'pri'));
+  return el('div', { class: 'row' },
+    el('div', { class: 'file' }, el('span', { class: 'fname', title: 'Click to replace', onclick: pick }, p.fileName || 'image.png'),
+      el('button', { class: 'ib', title: 'Remove image', onclick: onClear }, '×')),
+    extra);
+}
+function clearImage(p){
+  commit();
+  if (p.type === 'render') Object.assign(p, { imageId: null, fileName: '', nw: 0, nh: 0, zoom: 1, px: 0, py: 0 });
+  else { Object.assign(p, { imageId: null, fileName: '', nw: 0, nh: 0, box: null, objects: [], groups: [], excluded: [], manual: [], parts: [] }); ui.sel.clear(); ui.selPart = null; }
+  renderAll();
 }
 function confCheck(p){ return check('Show CONFIDENTIAL', p.conf !== false, v => { commit(); p.conf = v; renderPage(); renderSide(); }); }
 function bgRow(p, after){
@@ -1086,12 +1144,6 @@ function lassoSelect(p, poly){
   }
   for (const m of p.manual) if (pointInPoly(m.x, m.y, poly)) ui.sel.add('m' + m.id);
 }
-async function pickColor(p, I){
-  const img = await getImg(p.imageId), c = document.createElement('canvas'); c.width = c.height = 1;
-  const x = c.getContext('2d', { willReadFrequently: true });
-  x.drawImage(img, clamp(Math.floor(I.x), 0, p.nw - 1), clamp(Math.floor(I.y), 0, p.nh - 1), 1, 1, 0, 0, 1, 1);
-  const d = x.getImageData(0, 0, 1, 1).data; return rgbToHex([d[0], d[1], d[2]]);
-}
 
 // ---------- refs ----------
 function findSpot(p, w, h){
@@ -1163,7 +1215,7 @@ function onDown(e){
       if (!moved){ if (Math.hypot(Q.x - P.x, Q.y - P.y) < 3) return; commit(); moved = true; }
       pt.label = fromPg(p, Q); if (!pt.anchorManual && u) pt.anchor = nearestSample(u, pt.label); drawMarkers(svg, p, true);
     }, () => {
-      ui.selPart = pt.uid;
+      ui.selPart = pt.uid; ui.partsOpen = true;
       if (moved){
         const L = toPg(p, pt.label);
         const other = p.parts.find(o => o !== pt && o.label && Math.hypot(toPg(p, o.label).x - L.x, toPg(p, o.label).y - L.y) < MR*1.6);
@@ -1178,7 +1230,7 @@ function onDown(e){
     return;
   }
   const partId = attr('data-part');
-  if (partId){ ui.selPart = partId; renderAll(); const r = document.querySelector(`.prow[data-uid="${partId}"]`); r && r.scrollIntoView({ block: 'nearest' }); return; }
+  if (partId){ ui.selPart = partId; ui.partsOpen = true; renderAll(); const r = document.querySelector(`.prow[data-uid="${partId}"]`); r && r.scrollIntoView({ block: 'nearest' }); return; }
   if (p.type === 'render'){
     if (p.imageId && p.nw && t.classList.contains('rimg')){
       e.preventDefault();
@@ -1216,11 +1268,6 @@ function onDown(e){
       if (!inImg) return; commit(); const m = { id: uid(), x: I.x, y: I.y }; p.manual.push(m);
       if (p.parts.length){ const pt = newPart('m' + m.id); p.parts.push(pt); placeMarkers(p, false); ui.selPart = pt.uid; }
       renderAll(); break;
-    }
-    case 'pick': {
-      if (!inImg) return;
-      pickColor(p, I).then(hex => { commit(); p.det.bg = hex; ui.tool = 'select'; runDetect(p); toast('Capture background set to ' + hex); });
-      break;
     }
     case 'move': {
       const st = { ...p.box }, img = $('.cap'), cv = $('.det'), svg = $('.mk-layer'); let c = false;
@@ -1400,7 +1447,7 @@ document.addEventListener('keydown', e => {
   if (k === 'v') setTool('select'); else if (k === 'l') setTool('lasso'); else if (k === 'a') setTool('add'); else if (k === 'm') setTool('move');
   else if (k === 'g') groupSel();
   else if (k === 'delete' || k === 'backspace'){ e.preventDefault(); if (ui.sel.size) excludeSel(); else if (ui.selPart) deletePart(p, ui.selPart); }
-  else if (k === 'escape'){ ui.sel.clear(); ui.selPart = null; ui.selRef = null; if (ui.tool === 'pick') ui.tool = 'select'; renderAll(); }
+  else if (k === 'escape'){ ui.sel.clear(); ui.selPart = null; ui.selRef = null; renderAll(); }
 });
 
 // ---------- boot ----------
@@ -1411,6 +1458,7 @@ document.addEventListener('keydown', e => {
     if (d){ loadDoc(JSON.parse(d)); setTimeout(() => toast('Restored your last session', [['Start new', () => { freshDoc(); renderAll(); }]]), 300); }
   } catch(e){ freshDoc(); }
   layout(); renderAll();
+  try { await document.fonts.ready; renderAll(); } catch(e){}
 })();
 </script>
 </body>
