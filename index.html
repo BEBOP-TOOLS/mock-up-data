@@ -151,13 +151,11 @@ input[type=color]{width:32px;height:30px;border:0;border-radius:7px;padding:3px;
 .cv-foot{position:absolute;left:0;right:0;bottom:62px;text-align:center;font-size:26px;font-weight:700;letter-spacing:.03em;word-spacing:.25em}
 .cl-contact{position:absolute;left:108px;bottom:96px;font-size:40px;line-height:1.55;font-weight:500}
 .cl-logo{position:absolute;right:108px;bottom:96px}
-.rimg{position:absolute;inset:0;width:100%;height:100%}
+.rimg{position:absolute;max-width:none}
+.inter .rimg{cursor:grab}
+.inter .rimg:active{cursor:grabbing}
 /* ---- popover, toast ---- */
 #pop{position:fixed;z-index:50;background:#fff;border-radius:12px;box-shadow:0 8px 30px rgba(0,0,0,.18),0 0 0 1px rgba(0,0,0,.05);padding:14px;width:256px}
-#pop .rgb{display:grid;grid-template-columns:14px 1fr 48px;gap:6px 8px;align-items:center;margin:10px 0 4px}
-#pop .rgb span{color:var(--mut)}
-#pop .rgb input[type=range]{width:100%;accent-color:var(--ink)}
-#pop .rgb .in{padding:4px 6px;text-align:right}
 #pop .sws-h{color:var(--mut);font-size:11px;margin-top:10px}
 #pop .sws{flex-wrap:wrap}
 #pop[hidden]{display:none}
@@ -256,6 +254,7 @@ function toast(msg, actions = []){
 const TYPE_LABEL = { cover: 'cover', render: 'rendering', spec: 'specification', closing: 'closing' };
 const MR = 20; // 마커 반지름(px, 1920 기준)
 function defMeta(){ return {
+  autoTrim: true,
   project: 'BEBOP DESIGN PROJECT', docType: 'MOCK UP', date: todayStr(), fileBase: 'bebop-{date}-mockup',
   pageBg: '#e4e4e4', coverBg: '#000000', confidential: true, specFormat: 'stack', showRevMarks: false,
   contact1: 'soohun@bebop.kr / rich@bebop.kr', contact2: '1F, 27, Toegye-ro 86ga-gil, Jung-gu, Seoul, Korea',
@@ -386,7 +385,8 @@ function analyzeImage(img, det){
     const dr = d[j]-br, dg = d[j+1]-bgc, db = d[j+2]-bb;
     if (dr*dr + dg*dg + db*db > t2) mask[i] = 1;
   }
-  const r = Math.round(det.merge), dil = r > 0 ? dilate(mask, W, H, r) : mask;
+  const f = Math.max(W, H)/1400;
+  const r = Math.round(det.merge*f), dil = r > 0 ? dilate(mask, W, H, r) : mask;
   const lab = new Int32Array(N), stack = new Int32Array(N); let n = 0;
   for (let i = 0; i < N; i++){
     if (!dil[i] || lab[i]) continue;
@@ -402,7 +402,7 @@ function analyzeImage(img, det){
     cnt[l]++; sx[l] += x; sy[l] += y; if (x < x0[l]) x0[l] = x; if (y < y0[l]) y0[l] = y; if (x > x1[l]) x1[l] = x; if (y > y1[l]) y1[l] = y; }
   const remap = new Int32Array(n+1), objects = []; let id = 0;
   for (let l = 1; l <= n; l++){
-    if (cnt[l] < Math.max(1, det.minArea)) continue;
+    if (cnt[l] < Math.max(1, det.minArea*f*f)) continue;
     id++; remap[l] = id;
     objects.push({ id, cx: (sx[l]/cnt[l] + .5)/k, cy: (sy[l]/cnt[l] + .5)/k, bbox: [x0[l]/k, y0[l]/k, (x1[l]+1)/k, (y1[l]+1)/k], area: cnt[l]/(k*k), samples: [] });
   }
@@ -597,8 +597,8 @@ function logoEl(size, onDark){
   if (S.meta.logoId && IMG[S.meta.logoId]) return el('img', { src: IMG[S.meta.logoId], style: { height: size + 'px', filter: onDark ? 'invert(1)' : 'none', display: 'block' } });
   return el('span', { class: 'logo-t', style: { fontSize: size*1.12 + 'px', color: onDark ? '#fff' : '#111' } }, 'BEBOP.');
 }
-function chrome(page, i, dark){
-  if (S.meta.confidential) page.append(el('div', { class: 'pg-conf' }, 'CONFIDENTIAL'));
+function chrome(page, i, dark, p){
+  if (S.meta.confidential && p.conf !== false) page.append(el('div', { class: 'pg-conf' }, 'CONFIDENTIAL'));
   page.append(el('div', { class: 'pg-foot' },
     el('span', {}, `${S.meta.project}  /  ${S.meta.docType}`),
     el('span', { class: 'num' }, String(i + 1)),
@@ -609,6 +609,20 @@ function specLines(pt){
   const lines = S.meta.specFormat === 'inline' ? [j(pt.material, pt.finish, pt.color)] : [(pt.color || '').trim(), j(pt.material, pt.finish)];
   (pt.note || '').split('\n').map(s => s.trim()).filter(Boolean).forEach(s => lines.push(s.startsWith('*') ? s : '* ' + s));
   return lines.filter(Boolean);
+}
+function titleEl(page, p, inter){
+  if (inter) page.append(el('div', { class: 'pg-title', contenteditable: 'true', spellcheck: 'false', 'data-title': '1', 'data-ph': 'Subtitle' }, p.title || null));
+  else if (p.title) page.append(el('div', { class: 'pg-title' }, p.title));
+}
+// rendering image: zoom 1 = fills the page (cover), px/py = pan offset in page px
+function renderRect(p){
+  const c = Math.max(1920/p.nw, 1080/p.nh)*(p.zoom || 1), w = p.nw*c, h = p.nh*c;
+  return { x: (1920 - w)/2 + (p.px || 0), y: (1080 - h)/2 + (p.py || 0), w, h };
+}
+function zoomRender(p, z, P){
+  const r0 = renderRect(p), z0 = p.zoom || 1; z = clamp(z, 0.2, 8); const k = z/z0;
+  const x = P.x - (P.x - r0.x)*k, y = P.y - (P.y - r0.y)*k;
+  p.zoom = z; p.px = x - (1920 - r0.w*k)/2; p.py = y - (1080 - r0.h*k)/2;
 }
 function buildPage(p, i, inter){
   const bg = pageBg(p), dark = isDark(bg);
@@ -627,15 +641,18 @@ function buildPage(p, i, inter){
     return page;
   }
   if (p.type === 'render'){
-    if (p.imageId) page.append(el('img', { class: 'rimg', src: IMG[p.imageId], style: { objectFit: p.fit || 'cover' } }));
+    if (p.imageId){
+      if (p.nw){ const r = renderRect(p); page.append(el('img', { class: 'rimg', src: IMG[p.imageId], draggable: 'false', style: { left: r.x + 'px', top: r.y + 'px', width: r.w + 'px', height: r.h + 'px' } })); }
+      else getImg(p.imageId).then(img => { p.nw = img.naturalWidth; p.nh = img.naturalHeight; renderAll(); });
+    }
     else if (inter) page.append(el('div', { class: 'dropz', 'data-drop': '1', style: { left: '200px', top: '160px', width: '1520px', height: '760px' } }, 'Drop a rendering (PNG) or click to upload'));
-    if (p.chrome !== false) chrome(page, i, dark);
+    chrome(page, i, dark, p);
+    titleEl(page, p, inter);
     return page;
   }
   // ---- spec ----
-  chrome(page, i, dark);
-  if (inter) page.append(el('div', { class: 'pg-title', contenteditable: 'true', spellcheck: 'false', 'data-title': '1', 'data-ph': 'Subtitle' }, p.title || null));
-  else if (p.title) page.append(el('div', { class: 'pg-title' }, p.title));
+  chrome(page, i, dark, p);
+  titleEl(page, p, inter);
   const top = listTop(p);
   const list = el('div', { class: 'pg-list', style: { top: top + 'px', width: p.listW + 'px', height: (985 - top) + 'px', columnCount: p.listCols } });
   p.parts.forEach((pt, ix) => {
@@ -766,17 +783,48 @@ function addSpecPage(){
 }
 function addRenderPage(){
   commit(); const at = insertIdx();
-  S.pages.splice(at, 0, { id: uid(), type: 'render', imageId: null, fit: 'cover', chrome: true, bg: '' }); cur = at; renderAll();
+  S.pages.splice(at, 0, { id: uid(), type: 'render', imageId: null, title: '', bg: '' }); cur = at; renderAll();
 }
 async function addRenderPages(files){
   if (!files || !files.length) return;
   commit(); let at = insertIdx();
-  for (const f of files){ const id = addImage(await readURL(f)); S.pages.splice(at, 0, { id: uid(), type: 'render', imageId: id, fit: 'cover', chrome: true, bg: '' }); cur = at; at++; }
+  for (const f of files){ const id = addImage(await readURL(f)), img = await getImg(id);
+    S.pages.splice(at, 0, { id: uid(), type: 'render', imageId: id, nw: img.naturalWidth, nh: img.naturalHeight, title: '', bg: '' }); cur = at; at++; }
   renderAll(); toast(`Added ${files.length} rendering page${files.length > 1 ? 's' : ''}`);
 }
-async function setRenderImg(p, file){ const id = addImage(await readURL(file)); commit(); p.imageId = id; renderAll(); }
+async function setRenderImg(p, file){
+  const id = addImage(await readURL(file)), img = await getImg(id); commit();
+  Object.assign(p, { imageId: id, nw: img.naturalWidth, nh: img.naturalHeight, zoom: 1, px: 0, py: 0 }); renderAll();
+}
+// Viewport captures differ per person (window size, DPI, empty margins).
+// Trim the empty background around the model and cap the size, so every capture lands at the same scale on the page.
+async function normalizeCapture(url){
+  const img = await new Promise((res, rej) => { const i = new Image(); i.onload = () => res(i); i.onerror = rej; i.src = url; });
+  const nw = img.naturalWidth, nh = img.naturalHeight, k = Math.min(1, 1200/Math.max(nw, nh));
+  const W = Math.max(1, Math.round(nw*k)), H = Math.max(1, Math.round(nh*k));
+  const c = document.createElement('canvas'); c.width = W; c.height = H;
+  const x = c.getContext('2d', { willReadFrequently: true }); x.drawImage(img, 0, 0, W, H);
+  const d = x.getImageData(0, 0, W, H).data, bg = autoBg(d, W, H), t2 = 20*20;
+  let x0 = W, y0 = H, x1 = -1, y1 = -1;
+  for (let yy = 0; yy < H; yy++) for (let xx = 0; xx < W; xx++){
+    const j = (yy*W + xx)*4; if (d[j+3] < 20) continue;
+    if (!bg.transparent){ const dr = d[j]-bg.rgb[0], dg = d[j+1]-bg.rgb[1], db = d[j+2]-bg.rgb[2]; if (dr*dr + dg*dg + db*db <= t2) continue; }
+    if (xx < x0) x0 = xx; if (xx > x1) x1 = xx; if (yy < y0) y0 = yy; if (yy > y1) y1 = yy;
+  }
+  if (x1 < 0) return { url, trimmed: false, w: nw, h: nh };
+  const pad = Math.round(Math.max(x1 - x0, y1 - y0)/k*0.04);
+  const cx0 = clamp(Math.floor(x0/k) - pad, 0, nw), cy0 = clamp(Math.floor(y0/k) - pad, 0, nh);
+  const cx1 = clamp(Math.ceil((x1 + 1)/k) + pad, 0, nw), cy1 = clamp(Math.ceil((y1 + 1)/k) + pad, 0, nh);
+  const cw = cx1 - cx0, ch = cy1 - cy0, cap = Math.min(1, 3000/Math.max(cw, ch));
+  if (cap === 1 && cw > nw*0.97 && ch > nh*0.97) return { url, trimmed: false, w: nw, h: nh };
+  const o = document.createElement('canvas'); o.width = Math.round(cw*cap); o.height = Math.round(ch*cap);
+  const ox = o.getContext('2d'); ox.imageSmoothingQuality = 'high'; ox.drawImage(img, cx0, cy0, cw, ch, 0, 0, o.width, o.height);
+  return { url: o.toDataURL('image/png'), trimmed: true, w: nw, h: nh, ow: o.width, oh: o.height };
+}
 async function setCapture(p, file){
-  const id = addImage(await readURL(file)), img = await getImg(id);
+  let url = await readURL(file), note = '';
+  if (S.meta.autoTrim !== false){ const n = await normalizeCapture(url); url = n.url; if (n.trimmed) note = ` · trimmed ${n.w}×${n.h} → ${n.ow}×${n.oh}`; }
+  const id = addImage(url), img = await getImg(id);
   commit();
   const had = !!p.imageId, nw = img.naturalWidth, nh = img.naturalHeight;
   if (had){
@@ -786,7 +834,7 @@ async function setCapture(p, file){
     Object.assign(p, { imageId: id, nw, nh, objects: [], groups: [], excluded: [], manual: [], parts: [] }); p.det.bg = null; fitBox(p);
   }
   await runDetect(p);
-  toast(had ? 'Capture replaced. Numbers and specs are kept by position.' : `Found ${p.objects.length} objects`);
+  toast((had ? 'Capture replaced. Numbers and specs are kept by position.' : `Found ${p.objects.length} objects`) + note);
 }
 
 // ---------- panel ----------
@@ -839,10 +887,12 @@ function renderPanel(){
   if (isEnd(p)){ P.append(el('div', { class: 'pempty' }, 'Click the background to change its color.', p.type === 'cover' ? [el('br'), 'Click the text at the bottom to edit it.'] : null)); return; }
   if (p.type === 'render'){
     P.append(sec('Rendering',
-      el('div', { class: 'row' }, btn(p.imageId ? 'Replace image' : 'Upload image', () => pickFile('image/*').then(f => f[0] && setRenderImg(p, f[0])), 'pri')),
-      row('Fit', seg([['cover', 'Fill'], ['contain', 'Fit']], p.fit || 'cover', v => { commit(); p.fit = v; renderAll(); })),
-      check('Show CONFIDENTIAL · footer', p.chrome !== false, v => { commit(); p.chrome = v; renderPage(); }),
-      bgRow(p, lite)));
+      el('div', { class: 'row' }, btn(p.imageId ? 'Replace image' : 'Upload image', () => pickFile('image/*').then(f => f[0] && setRenderImg(p, f[0])), 'pri'),
+        p.imageId ? btn('Reset view', () => { commit(); p.zoom = 1; p.px = 0; p.py = 0; renderAll(); }) : null),
+      p.imageId && p.nw ? range('Zoom', Math.round((p.zoom || 1)*100), 20, 800, 1, v => { zoomRender(p, v/100, { x: 960, y: 540 }); renderPage(); }, v => v + '%') : null,
+      confCheck(p),
+      bgRow(p, lite),
+      el('p', { class: 'hint' }, 'The image fills the page. Drag it to move, scroll on it to zoom. Click "Subtitle" on the page to add a title — leave it empty to remove it.')));
     return;
   }
   // ---- spec ----
@@ -854,6 +904,8 @@ function renderPanel(){
     p.imageId ? range('Size', Math.round(p.box.w/fitDims(p).w*100), 30, 220, 1, v => {
       const f = fitDims(p), cx = p.box.x + p.box.w/2, cy = p.box.y + p.box.h/2;
       p.box.w = f.w*v/100; p.box.h = f.h*v/100; p.box.x = cx - p.box.w/2; p.box.y = cy - p.box.h/2; renderPage(); }, v => v + '%') : null,
+    confCheck(p),
+    check('Auto-trim empty margins on upload', S.meta.autoTrim !== false, v => { commit(); S.meta.autoTrim = v; }),
     p.imageId ? el('p', { class: 'hint' }, 'Replacing the capture keeps numbers and specs by position if the framing is the same.') : el('p', { class: 'hint' }, 'Use a PNG from Rhino ViewCaptureToFile / ViewCaptureToClipboard. Pasting (⌘V) works too.')));
   if (p.imageId){
     const bgHex = p.det.bg || p.det.autoBg;
@@ -903,6 +955,7 @@ function renderPanel(){
     el('p', { class: 'hint' }, 'Placed in an empty spot automatically. Drag to move, drag the bottom-right corner to resize.')));
   P.scrollTop = st;
 }
+function confCheck(p){ return check('Show CONFIDENTIAL', p.conf !== false, v => { commit(); p.conf = v; renderPage(); renderSide(); }); }
 function bgRow(p, after){
   return el('div', { class: 'row' }, el('label', {}, 'Background'), colorInp(p, 'bg', after, S.meta.pageBg),
     el('span', { class: 'mut' }, p.bg ? 'This page' : 'Default'),
@@ -1082,6 +1135,14 @@ function onDown(e){
   }
   const partId = attr('data-part');
   if (partId){ ui.selPart = partId; renderAll(); const r = document.querySelector(`.prow[data-uid="${partId}"]`); r && r.scrollIntoView({ block: 'nearest' }); return; }
+  if (p.type === 'render'){
+    if (p.imageId && p.nw && t.classList.contains('rimg')){
+      e.preventDefault();
+      const st = { x: p.px || 0, y: p.py || 0 }, img = t; let c = false;
+      startDrag(e, Q => { if (!c){ commit(); c = true; } p.px = st.x + Q.x - P.x; p.py = st.y + Q.y - P.y; const r = renderRect(p); img.style.left = r.x + 'px'; img.style.top = r.y + 'px'; }, () => renderSide());
+    } else if (!p.imageId) openBgPop(p, e.clientX, e.clientY);
+    return;
+  }
   if (p.type !== 'spec') return;
   const inBox = p.imageId && p.box && P.x >= p.box.x && P.y >= p.box.y && P.x <= p.box.x + p.box.w && P.y <= p.box.y + p.box.h;
   if (!inBox && (ui.tool === 'select' || !p.imageId)){
@@ -1152,25 +1213,17 @@ function openBgPop(p, x, y){
   color.addEventListener('input', () => set(color.value, color));
   const hex = el('input', { class: 'in', spellcheck: 'false' });
   hex.addEventListener('change', () => { const v = hex.value.trim().replace(/^#?/, '#').toLowerCase(); /^#[0-9a-f]{6}$/.test(v) ? set(v) : (hex.value = cur()); });
-  const ch = ['R', 'G', 'B'].map((lab, k) => {
-    const r = el('input', { type: 'range', min: 0, max: 255, step: 1 }), n = el('input', { class: 'in', type: 'number', min: 0, max: 255 });
-    const upd = v => { const a = hexToRgb(cur()); a[k] = clamp(+v || 0, 0, 255); set(rgbToHex(a), null); };
-    r.addEventListener('input', () => upd(r.value)); n.addEventListener('input', () => upd(n.value));
-    return { lab, r, n };
-  });
   const sws = el('div', { class: 'sws' });
   const sync = from => {
-    const v = cur(), a = hexToRgb(v);
+    const v = cur();
     if (from !== color) color.value = v;
     if (document.activeElement !== hex) hex.value = v;
-    ch.forEach((o, k) => { o.r.value = a[k]; if (document.activeElement !== o.n) o.n.value = a[k]; });
     sws.querySelectorAll('button').forEach(b => b.classList.toggle('on', b.dataset.v === v.toLowerCase()));
   };
   const used = usedBgColors();
   sws.append(...used.map(v => el('button', { style: { background: v }, title: v, 'data-v': v, onclick: () => set(v) })));
   pop.replaceChildren(el('div', { class: 'pop-h' }, 'Background'),
     el('div', { class: 'row' }, color, hex),
-    el('div', { class: 'rgb' }, ch.map(o => [el('span', {}, o.lab), o.r, o.n])),
     ...(used.length ? [el('div', { class: 'sws-h' }, 'Recent & in use'), sws] : []));
   sync(); pop.hidden = false;
   const r = pop.getBoundingClientRect();
@@ -1210,6 +1263,18 @@ async function printPdf(){
   document.title = old;
 }
 window.addEventListener('afterprint', () => $('#print').replaceChildren());
+
+// ---------- rendering zoom (wheel / pinch) ----------
+let wheelC = false, wheelT;
+$('#pageWrap').addEventListener('wheel', e => {
+  const p = curPage(); if (!p || p.type !== 'render' || !p.imageId || !p.nw) return;
+  e.preventDefault();
+  if (!wheelC){ commit(); wheelC = true; }
+  zoomRender(p, (p.zoom || 1)*Math.exp(-e.deltaY*(e.ctrlKey ? 0.01 : 0.0015)), toPage(e));
+  const r = renderRect(p), img = $('#pageWrap .rimg');
+  if (img) Object.assign(img.style, { left: r.x + 'px', top: r.y + 'px', width: r.w + 'px', height: r.h + 'px' });
+  clearTimeout(wheelT); wheelT = setTimeout(() => { wheelC = false; renderSide(); renderPanel(); }, 250);
+}, { passive: false });
 
 // ---------- fullscreen ----------
 const pres = { on: false };
