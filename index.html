@@ -98,6 +98,13 @@ textarea.in{resize:vertical;line-height:1.45}
 .seg.ico button{width:34px;padding:5px 0;display:grid;place-items:center}
 .seg.ico svg{width:16px;height:16px;fill:none;stroke:currentColor;stroke-width:1.7;stroke-linecap:round}
 .ptog{width:100%;display:flex;justify-content:space-between;margin-top:10px}
+.updn{display:grid;grid-template-rows:1fr 1fr;gap:1px;flex:none}
+.updn button{border:0;background:var(--fill);width:22px;height:12px;padding:0;font-size:7px;line-height:1;cursor:pointer;color:var(--mut)}
+.updn button:first-child{border-radius:5px 5px 0 0}.updn button:last-child{border-radius:0 0 5px 5px}
+.updn button:hover:not(:disabled){background:var(--fill2);color:var(--ink)}
+.updn button:disabled{opacity:.35;cursor:default}
+.addnote{padding:4px 9px;font-size:11px;background:transparent;color:var(--mut)}
+.addnote:hover{background:var(--fill)}
 .pthumb{width:34px;height:34px;border-radius:6px;background:#fff;object-fit:contain;flex:none;box-shadow:inset 0 0 0 1px rgba(0,0,0,.06)}
 .sec h3.tog{cursor:pointer;user-select:none}
 .sec h3 .caret{margin-left:auto;color:var(--mut);text-transform:none;font-size:14px;line-height:1}
@@ -140,16 +147,14 @@ input[type=color]{width:32px;height:30px;border:0;border-radius:7px;padding:3px;
 .pg-foot .num{position:absolute;left:50%;transform:translateX(-50%);letter-spacing:0;font-size:17px}
 .pg-foot .flogo{display:flex;align-items:center}
 .pg-title{position:absolute;left:62px;top:40px;font-size:40px;font-weight:800;letter-spacing:-.01em}
-.pg-list{position:absolute;left:62px;column-gap:36px;column-fill:auto;overflow:hidden}
-.li{break-inside:avoid;padding-bottom:24px}
-.li-h{display:flex;align-items:center;gap:12px;min-width:0;font-size:22px;font-weight:700;margin-bottom:5px}
-.li-dot{width:22px;height:22px;border-radius:50%;background:var(--red);color:#fff;font-size:13px;font-weight:700;display:grid;place-items:center;flex:none}
-.li-b{padding-left:34px;font-size:18.5px;line-height:1.6;font-weight:500}
+.pg-list{position:absolute;left:62px;column-gap:calc(22px*var(--ls,1));column-fill:auto;overflow:hidden;--ls:1}
+.li{break-inside:avoid;padding-bottom:calc(22px*var(--ls));white-space:nowrap}
+.li-h{display:flex;align-items:center;gap:calc(12px*var(--ls));min-width:0;font-size:calc(22px*var(--ls));font-weight:700;margin-bottom:calc(4px*var(--ls))}
+.li-dot{width:calc(22px*var(--ls));height:calc(22px*var(--ls));border-radius:50%;background:var(--red);color:#fff;font-size:calc(13px*var(--ls));font-weight:700;display:grid;place-items:center;flex:none}
+.li-b{padding-left:calc(34px*var(--ls));font-size:calc(18.5px*var(--ls));line-height:1.6;font-weight:500}
 .li.on .li-h>:last-child{box-shadow:inset 0 -6px 0 rgba(230,0,18,.25)}
 .li .ed{margin:0 -4px;padding:0 4px}
 .li .note{white-space:pre-wrap}
-.li .note:empty{display:none}
-.inter .li:hover .note:empty,.inter .li.on .note:empty,.li .note:focus{display:block}
 .page.solo .li.dim{opacity:.22}
 .page.solo .mk.dim{opacity:.25}
 .page.solo .det{display:none}
@@ -563,7 +568,7 @@ function rayExit(r, u, dx, dy){
 function placeMarkers(p, all){
   if (!p.box) return;
   const r = RT[p.id], um = unitMap(p), units = [...um.values()];
-  const s = p.box.w/p.nw, off = 26/s, R = (MR + 4)/s, placed = [];
+  const s = p.box.w/p.nw, off = (15 + mr(p))/s, R = (mr(p) + 4)/s, placed = [];
   if (!all) p.parts.forEach(pt => { if (pt.label) placed.push(pt.label); });
   for (const pt of p.parts){
     if (!all && pt.label) continue;
@@ -673,7 +678,7 @@ function zoomRender(p, z, P){
   p.zoom = z; p.px = x - (1920 - r0.w*k)/2; p.py = y - (1080 - r0.h*k)/2;
 }
 // one entry of the parts list; while editing, empty fields show a faint example
-const EX = { name: 'Top cover', color: 'PANTONE Cool Gray 11 U', mf: 'ABS / Matte paint' };
+const EX = { name: 'Part name', color: 'PANTONE CODE', mf: 'Material / Finishing' };
 function listItem(p, pt, ix, inter){
   if (!inter) return el('div', { class: 'li' },
     el('div', { class: 'li-h' }, el('span', { class: 'li-dot' }, p.startNum + ix), el('span', {}, pt.name || '')),
@@ -682,19 +687,20 @@ function listItem(p, pt, ix, inter){
   const ed = (f, v, ph, cls = '') => el('div', { class: 'ed ' + cls, contenteditable: 'true', spellcheck: 'false', 'data-pf': pt.uid + '|' + f, 'data-ph': ph }, v || null);
   return el('div', { class: 'li' + (ui.selPart === pt.uid ? ' on' : ''), 'data-part': pt.uid },
     el('div', { class: 'li-h' }, el('span', { class: 'li-dot' }, p.startNum + ix), ed('name', (pt.name || '').trim(), EX.name)),
-    el('div', { class: 'li-b' }, ed('color', (pt.color || '').trim(), EX.color), ed('mf', j(pt.material, pt.finish), EX.mf), ed('note', (pt.note || '').trim(), '* Note', 'note')));
+    el('div', { class: 'li-b' }, ed('color', (pt.color || '').trim(), EX.color), ed('mf', j(pt.material, pt.finish), EX.mf), (pt.note || '').trim() ? ed('note', pt.note.trim(), '* Note', 'note') : null));
 }
 // size the list from its text: column width = widest entry, columns = as few as fit the page height
 function autoList(p){
-  const top = listTop(p), H = 985 - top, GAP = 36, MAXW = 560;
+  const ls = p.listScale || 1, top = listTop(p), H = 985 - top, GAP = Math.round(22*ls);
   let w = 0, cols = 1;
   if (p.parts.length){
-    const host = el('div', { class: 'page', style: { position: 'absolute', left: '-20000px', top: '0', height: 'auto', width: '3000px', visibility: 'hidden' } });
+    const host = el('div', { class: 'page', style: { position: 'absolute', left: '-20000px', top: '0', height: 'auto', width: '6000px', visibility: 'hidden' } });
+    host.style.setProperty('--ls', ls);
     const items = p.parts.map((pt, ix) => listItem(p, pt, ix, true));
-    items.forEach(it => { it.style.width = 'max-content'; it.style.maxWidth = MAXW + 'px'; host.append(it); });
+    items.forEach(it => { it.style.width = 'max-content'; host.append(it); });
     document.body.append(host);
     w = Math.max(240, ...items.map(it => Math.ceil(it.getBoundingClientRect().width)));
-    items.forEach(it => { it.style.width = w + 'px'; it.style.maxWidth = ''; });
+    items.forEach(it => { it.style.width = w + 'px'; });
     const hs = items.map(it => it.getBoundingClientRect().height);
     host.remove();
     let used = 0;
@@ -702,7 +708,8 @@ function autoList(p){
     cols = Math.min(cols, 3);
   }
   const listW = p.parts.length ? cols*w + (cols - 1)*GAP : 0;
-  if (listW === p.listW && cols === p.listCols) return;
+  if (listW === p.listW && cols === p.listCols && ls === p.laidLs) return;
+  p.laidLs = ls;
   const fitted = p.box && ['x', 'y', 'w', 'h'].every(k => Math.abs(p.box[k] - fitDims(p)[k]) < 1.5);
   p.listW = listW; p.listCols = cols;
   if (fitted) fitBox(p);
@@ -738,6 +745,7 @@ function buildPage(p, i, inter){
   titleEl(page, p, inter);
   const top = listTop(p);
   const list = el('div', { class: 'pg-list', style: { top: top + 'px', width: p.listW + 'px', height: (985 - top) + 'px', columnCount: p.listCols } });
+  list.style.setProperty('--ls', p.listScale || 1);
   p.parts.forEach((pt, ix) => list.append(listItem(p, pt, ix, inter)));
   page.append(list);
   if (p.imageId && p.box){
@@ -766,8 +774,9 @@ function buildPage(p, i, inter){
   if (inter) page.append(sv('svg', { class: 'lasso', viewBox: '0 0 1920 1080' }));
   return page;
 }
+const mr = p => MR*(p.listScale || 1);
 function drawMarkers(svg, p, inter){
-  svg.replaceChildren();
+  svg.replaceChildren(); const MR = mr(p);
   const defs = sv('defs'), m = sv('marker', { id: 'ah', viewBox: '0 0 10 10', refX: '8', refY: '5', markerWidth: '4.5', markerHeight: '4.5', orient: 'auto-start-reverse' });
   m.append(sv('path', { d: 'M0,0 L10,5 L0,10 z', fill: '#e60012' })); defs.append(m); svg.append(defs);
   if (!p.box) return;
@@ -779,7 +788,7 @@ function drawMarkers(svg, p, inter){
       if (d > MR + 6){ const ux = dx/d, uy = dy/d;
         g.append(sv('line', { x1: L.x + ux*(MR + 2), y1: L.y + uy*(MR + 2), x2: A.x - ux*2, y2: A.y - uy*2, stroke: '#e60012', 'stroke-width': '1.4', 'marker-end': 'url(#ah)' })); } }
     g.append(sv('circle', { cx: L.x, cy: L.y, r: MR, fill: '#e60012' }));
-    const t = sv('text', { x: L.x, y: L.y + 1, 'text-anchor': 'middle', 'dominant-baseline': 'central', fill: '#fff', 'font-size': '13', 'font-weight': '700', 'font-family': 'Pretendard, sans-serif' });
+    const t = sv('text', { x: L.x, y: L.y + 1, 'text-anchor': 'middle', 'dominant-baseline': 'central', fill: '#fff', 'font-size': String(13*(p.listScale || 1)), 'font-weight': '700', 'font-family': 'Pretendard, sans-serif' });
     t.textContent = p.startNum + ix; g.append(t); svg.append(g);
     if (inter && ui.selPart === pt.uid && pt.anchor){ const A = toPg(p, pt.anchor);
       svg.append(sv('circle', { cx: A.x, cy: A.y, r: 6, fill: '#fff', stroke: '#e60012', 'stroke-width': '2', class: 'anc', 'data-anc': pt.uid })); }
@@ -1052,6 +1061,7 @@ function renderPanel(){
         el('span', { style: { flex: '1' } }),
         btn('Ungroup', ungroupSel, '', !selN), btn('Exclude', excludeSel, '', !selN),
         p.excluded.length ? btn('Restore all', () => { commit(); p.excluded = []; syncParts(p); renderAll(); }) : null),
+      range('Text size', Math.round((p.listScale || 1)*100), 60, 140, 1, v => { p.listScale = v/100; renderPage(); renderSide(); }, v => v + '%'),
       el('div', { class: 'stat' }, `${n} parts · ${selN} selected`),
       el('div', { id: 'ovf', class: 'warn', hidden: true }, 'The list overflows the page. Split the image across another specification page.'),
       n ? el('button', { class: 'btn ptog', onclick: () => { ui.partsOpen = !ui.partsOpen; renderPanel(); } }, el('span', {}, ui.partsOpen ? 'Hide list' : `Edit list (${n})`), el('span', {}, ui.partsOpen ? '−' : '+')) : null,
@@ -1116,14 +1126,18 @@ function partThumb(p, u){
 function partRow(p, pt, ix, box, um){
   const grip = el('span', { class: 'grip', draggable: 'true', title: 'Drag to reorder' }, '⠿');
   const row = el('div', { class: 'prow' + (ui.selPart === pt.uid ? ' on' : ''), 'data-uid': pt.uid },
-    el('div', { class: 'prow-h' }, grip, el('span', { class: 'dot' }, p.startNum + ix), partThumb(p, um && um.get(pt.key)), inp(pt, 'name', { ph: 'Part name (e.g. Body side housing R)' }),
-      el('button', { class: 'ib', title: 'Copy specs to the next part (R→L name auto)', onclick: () => copyDown(p, ix) }, '↓'),
+    el('div', { class: 'prow-h' }, grip, el('span', { class: 'dot' }, p.startNum + ix), partThumb(p, um && um.get(pt.key)), inp(pt, 'name', { ph: 'Part name' }),
+      el('span', { class: 'updn' },
+        el('button', { title: 'Move up', disabled: ix === 0, onclick: () => movePart(p, ix, -1) }, '▲'),
+        el('button', { title: 'Move down', disabled: ix === p.parts.length - 1, onclick: () => movePart(p, ix, 1) }, '▼')),
       el('button', { class: 'ib', title: 'Delete this number (object gets excluded)', onclick: () => deletePart(p, pt.uid) }, '×')),
     el('div', { class: 'prow-g' },
-      inp(pt, 'color', { ph: 'Color / PANTONE', list: 'dl-color' }),
+      inp(pt, 'color', { ph: 'PANTONE CODE', list: 'dl-color' }),
       inp(pt, 'material', { ph: 'Material', list: 'dl-mat' }),
-      inp(pt, 'finish', { ph: 'Finish', list: 'dl-fin' })),
-    inp(pt, 'note', { ph: '* Notes (new line for each)', multi: true }));
+      inp(pt, 'finish', { ph: 'Finishing', list: 'dl-fin' })),
+    (pt.note || '').trim() || ui.noteOpen === pt.uid
+      ? inp(pt, 'note', { ph: '* Note (new line for each)', multi: true })
+      : el('button', { class: 'btn addnote', onclick: () => { ui.noteOpen = pt.uid; renderPanel(); const t = document.querySelector(`.prow[data-uid="${pt.uid}"] textarea`); t && t.focus(); } }, '+ Note'));
   grip.addEventListener('dragstart', e => { e.dataTransfer.setData('text/plain', String(ix)); e.dataTransfer.effectAllowed = 'move'; e.dataTransfer.setDragImage(row, 12, 12); row.classList.add('dragging'); });
   grip.addEventListener('dragend', () => row.classList.remove('dragging'));
   row.addEventListener('dragover', e => { e.preventDefault(); const r = row.getBoundingClientRect(), after = e.clientY > r.top + r.height/2; row.classList.toggle('dropA', after); row.classList.toggle('dropB', !after); });
@@ -1139,6 +1153,10 @@ function partRow(p, pt, ix, box, um){
     box.querySelectorAll('.prow.on').forEach(x => x.classList.remove('on')); row.classList.add('on'); renderPage();
   });
   return row;
+}
+function movePart(p, ix, d){
+  const j = ix + d; if (j < 0 || j >= p.parts.length) return;
+  commit(); [p.parts[ix], p.parts[j]] = [p.parts[j], p.parts[ix]]; ui.selPart = p.parts[j].uid; renderAll();
 }
 function copyDown(p, ix){
   const a = p.parts[ix], b = p.parts[ix + 1]; if (!b){ toast('No part below'); return; }
@@ -1238,7 +1256,7 @@ function onDown(e){
   if (e.button !== 0 || e.target.isContentEditable) return;
   const ae = document.activeElement; if (ae && ae.isContentEditable && pw.contains(ae)) ae.blur();
   const p = curPage(), t = e.target, P = toPage(e);
-  if (isEnd(p)){ openBgPop(p, e.clientX, e.clientY); return; }
+  if (isEnd(p)){ longPressBg(e, p); return; }
   const attr = (n) => { const x = t.closest(`[${n}]`); return x ? x.getAttribute(n) : null; };
   if (attr('data-refx')){ commit(); p.refs = p.refs.filter(r => r.id !== attr('data-refx')); ui.selRef = null; renderAll(); return; }
   if (attr('data-drop')){ pickFile('image/*').then(fs => { if (!fs[0]) return; p.type === 'spec' ? setCapture(p, fs[0]) : setRenderImg(p, fs[0]); }); return; }
@@ -1274,7 +1292,7 @@ function onDown(e){
       ui.selPart = pt.uid; ui.partsOpen = true;
       if (moved){
         const L = toPg(p, pt.label);
-        const other = p.parts.find(o => o !== pt && o.label && Math.hypot(toPg(p, o.label).x - L.x, toPg(p, o.label).y - L.y) < MR*1.6);
+        const other = p.parts.find(o => o !== pt && o.label && Math.hypot(toPg(p, o.label).x - L.x, toPg(p, o.label).y - L.y) < mr(p)*1.6);
         if (other){
           pt.label = orig; pt.anchor = origA;
           const a = p.parts.indexOf(pt), b = p.parts.indexOf(other); [p.parts[a], p.parts[b]] = [p.parts[b], p.parts[a]];
@@ -1292,17 +1310,18 @@ function onDown(e){
       e.preventDefault();
       const st = { x: p.px || 0, y: p.py || 0 }, img = t; let c = false;
       startDrag(e, Q => { if (!c){ commit(); c = true; } p.px = st.x + Q.x - P.x; p.py = st.y + Q.y - P.y; const r = renderRect(p); img.style.left = r.x + 'px'; img.style.top = r.y + 'px'; }, () => renderSide());
-    } else if (!p.imageId) openBgPop(p, e.clientX, e.clientY);
+    } else if (!p.imageId) longPressBg(e, p);
     return;
   }
   if (p.type !== 'spec') return;
   const inBox = p.imageId && p.box && P.x >= p.box.x && P.y >= p.box.y && P.x <= p.box.x + p.box.w && P.y <= p.box.y + p.box.h;
   if (!inBox && (ui.tool === 'select' || !p.imageId)){
     if (ui.sel.size || ui.selPart){ ui.sel.clear(); ui.selPart = null; renderAll(); }
-    openBgPop(p, e.clientX, e.clientY); return;
+    longPressBg(e, p); return;
   }
   if (!p.imageId || !p.box) return;
   e.preventDefault();
+  ui.showDet = true;
   const I = fromPg(p, P), r = RT[p.id] && RT[p.id].key === rtKey(p) ? RT[p.id] : null;
   const inImg = I.x >= 0 && I.y >= 0 && I.x <= p.nw && I.y <= p.nh;
   switch (ui.tool){
@@ -1350,6 +1369,14 @@ function closePop(){
     S.meta.recentBg = [v, ...(S.meta.recentBg || []).filter(x => x !== v)].slice(0, 8); dirty();
   }
   popFor = null;
+}
+// long press (≈0.5s without moving) on the page background opens the color popover
+function longPressBg(e, p){
+  const x0 = e.clientX, y0 = e.clientY;
+  const done = () => { clearTimeout(t); window.removeEventListener('pointermove', mv); window.removeEventListener('pointerup', done); };
+  const mv = ev => { if (Math.hypot(ev.clientX - x0, ev.clientY - y0) > 6) done(); };
+  const t = setTimeout(() => { done(); openBgPop(p, x0, y0); }, 500);
+  window.addEventListener('pointermove', mv); window.addEventListener('pointerup', done);
 }
 function openBgPop(p, x, y){
   const pop = $('#pop'), cur = () => pageBg(p);
@@ -1487,6 +1514,11 @@ for (const k of ['L', 'R']){
 
 // ---------- global events ----------
 $('#pageWrap').addEventListener('pointerdown', onDown);
+$('#stage').addEventListener('pointerdown', e => {
+  if (e.target !== $('#stage')) return;   // only the grey area around the page
+  const ae = document.activeElement; if (ae && ae.isContentEditable) ae.blur();
+  ui.showDet = false; ui.sel.clear(); ui.selPart = null; renderAll();
+});
 $('#bNew').onclick = () => { if (!confirm('Start a new document? Unsaved changes will be lost.')) return; freshDoc(); renderAll(); };
 $('#bSave').onclick = e => save(e.shiftKey);
 $('#bUndo').onclick = undo; $('#bRedo').onclick = redo;
