@@ -94,6 +94,11 @@ textarea.in{resize:vertical;line-height:1.45}
 .file .fname:hover{text-decoration:underline}
 .file .ib{background:transparent}
 .file .ib:hover{background:var(--fill2)}
+.seg.ico{flex:none}
+.seg.ico button{width:34px;padding:5px 0;display:grid;place-items:center}
+.seg.ico svg{width:16px;height:16px;fill:none;stroke:currentColor;stroke-width:1.7;stroke-linecap:round}
+.ptog{width:100%;display:flex;justify-content:space-between;margin-top:10px}
+.pthumb{width:34px;height:34px;border-radius:6px;background:#fff;object-fit:contain;flex:none;box-shadow:inset 0 0 0 1px rgba(0,0,0,.06)}
 .sec h3.tog{cursor:pointer;user-select:none}
 .sec h3 .caret{margin-left:auto;color:var(--mut);text-transform:none;font-size:14px;line-height:1}
 .sec h3.tog:hover .caret{color:var(--ink)}
@@ -137,10 +142,18 @@ input[type=color]{width:32px;height:30px;border:0;border-radius:7px;padding:3px;
 .pg-title{position:absolute;left:62px;top:40px;font-size:40px;font-weight:800;letter-spacing:-.01em}
 .pg-list{position:absolute;left:62px;column-gap:36px;column-fill:auto;overflow:hidden}
 .li{break-inside:avoid;padding-bottom:24px}
-.li-h{display:flex;align-items:center;gap:12px;font-size:22px;font-weight:700;margin-bottom:5px}
-.li-dot{width:26px;height:26px;border-radius:50%;background:var(--red);color:#fff;font-size:16px;font-weight:700;display:grid;place-items:center;flex:none}
-.li-b{padding-left:38px;font-size:18.5px;line-height:1.6;font-weight:500}
-.li.on .li-h span:last-child{box-shadow:inset 0 -6px 0 rgba(230,0,18,.25)}
+.li-h{display:flex;align-items:center;gap:12px;min-width:0;font-size:22px;font-weight:700;margin-bottom:5px}
+.li-dot{width:22px;height:22px;border-radius:50%;background:var(--red);color:#fff;font-size:13px;font-weight:700;display:grid;place-items:center;flex:none}
+.li-b{padding-left:34px;font-size:18.5px;line-height:1.6;font-weight:500}
+.li.on .li-h>:last-child{box-shadow:inset 0 -6px 0 rgba(230,0,18,.25)}
+.li .ed{margin:0 -4px;padding:0 4px}
+.li .note{white-space:pre-wrap}
+.li .note:empty{display:none}
+.inter .li:hover .note:empty,.inter .li.on .note:empty,.li .note:focus{display:block}
+.page.solo .li.dim{opacity:.22}
+.page.solo .mk.dim{opacity:.25}
+.page.solo .det{display:none}
+.solo-cv{position:absolute;pointer-events:none}
 .li .ghost{opacity:.3}
 .cap,.det{position:absolute;pointer-events:none}
 .det{image-rendering:pixelated;opacity:.95}
@@ -273,16 +286,17 @@ function toast(msg, actions = []){
 
 // ---------- state ----------
 const TYPE_LABEL = { cover: 'cover', render: 'rendering', spec: 'specification', closing: 'closing' };
-const MR = 9; // 마커 반지름(px, 1920 기준)
+const MR = 11; // 마커 반지름(px, 1920 기준) — 리스트 번호와 같은 크기
 function defMeta(){ return {
   project: 'BEBOP DESIGN PROJECT', docType: 'MOCK UP', date: todayStr(), fileBase: 'bebop-{date}-mockup',
   pageBg: '#e4e4e4', coverBg: '#000000', confidential: true, specFormat: 'stack', showRevMarks: false,
   contact1: 'soohun@bebop.kr / rich@bebop.kr', contact2: '1F, 27, Toegye-ro 86ga-gil, Jung-gu, Seoul, Korea',
   logoId: null, version: 0, deliveries: [], snapshot: null
 }; }
+const DET = { merge: 10, minArea: 150 }; // 인식 기본값 — 가까운 조각은 한 부품으로
 function newSpecPage(){ return {
   id: uid(), type: 'spec', title: '', bg: '', startNum: 1, imageId: null, nw: 0, nh: 0, box: null,
-  det: { bg: null, autoBg: null, tol: 26, merge: 4, minArea: 60, knockout: false },
+  det: { bg: null, autoBg: null, tol: 26, merge: DET.merge, minArea: DET.minArea, knockout: false },
   objects: [], groups: [], excluded: [], manual: [], parts: [], refs: [], listW: 760, listCols: 2, order: 'row', rowTol: 0.6
 }; }
 let S, IMG = {}, cur = 0, scale = 0.5;
@@ -295,7 +309,7 @@ function freshDoc(){
   S = { meta: defMeta(), pages: [ { id: uid(), type: 'cover' }, newSpecPage(), { id: uid(), type: 'closing' } ] };
   IMG = {}; cur = 1; fileHandle = null; resetCaches(); undoS.length = 0; redoS.length = 0;
 }
-function resetCaches(){ for (const k in RT) delete RT[k]; for (const k in RTp) delete RTp[k]; imgCache.clear(); cleanCache.clear(); cleanReady.clear(); ui.sel.clear(); ui.selPart = null; ui.selRef = null; }
+function resetCaches(){ thumbCache && thumbCache.clear(); for (const k in RT) delete RT[k]; for (const k in RTp) delete RTp[k]; imgCache.clear(); cleanCache.clear(); cleanReady.clear(); ui.sel.clear(); ui.selPart = null; ui.selRef = null; }
 const curPage = () => S.pages[cur];
 const isEnd = p => p.type === 'cover' || p.type === 'closing';
 function pageBg(p){ return p.bg || (isEnd(p) ? S.meta.coverBg : S.meta.pageBg); }
@@ -344,6 +358,7 @@ function loadDoc(obj){
   if (!obj || obj.format !== 'bebop-spec') throw new Error('Not a BEBOP spec file');
   S = { meta: { ...defMeta(), ...obj.meta }, pages: obj.pages };
   IMG = obj.images || {}; resetCaches(); undoS.length = 0; redoS.length = 0;
+  S.pages.forEach(p => { if (p.type === 'spec' && p.det.merge === 4 && p.det.minArea === 60) Object.assign(p.det, DET, { bg: null }); });
   cur = Math.min(1, S.pages.length - 1);
 }
 async function openDoc(){
@@ -505,9 +520,9 @@ function syncParts(p){
   }
   p.parts = keep;
 }
-async function doNumber(p){
-  if (!p.imageId){ toast('Upload a capture first'); return; }
-  await ensureRT(p); commit();
+async function doNumber(p, all = false, noCommit = false){
+  if (!p.imageId){ toast('Upload an image first'); return; }
+  await ensureRT(p); if (!noCommit) commit();
   const us = sortUnits(getUnits(p), p.order, p.rowTol);
   const old = p.parts, used = new Set();
   p.parts = us.map(u => {
@@ -518,7 +533,7 @@ async function doNumber(p){
   });
   const um = unitMap(p);
   p.parts.forEach(pt => { if (pt.label && !pt.anchorManual) pt.anchor = nearestSample(um.get(pt.key), pt.label); });
-  placeMarkers(p, false);
+  placeMarkers(p, all);
   renderAll(); toast(`Numbered ${p.parts.length} parts · ${p.startNum}–${p.startNum + p.parts.length - 1}`);
 }
 function nearestSample(u, pt){
@@ -533,10 +548,22 @@ function hitFg(r, x, y, rad){
   for (let a = 0; a < 12; a++) for (const f of [0.5, 1]){ const t = a/12*Math.PI*2; if (at(x + Math.cos(t)*rad*f, y + Math.sin(t)*rad*f)) return true; }
   return false;
 }
+// distance from the part's center to its outline along a direction (last pixel of the part on that ray)
+function rayExit(r, u, dx, dy){
+  if (!r || !u.ids) return null;
+  const ids = new Set(u.ids), step = 1/r.k, maxT = Math.hypot(u.bbox[2] - u.bbox[0], u.bbox[3] - u.bbox[1]);
+  let last = -1;
+  for (let t = 0; t <= maxT; t += step){
+    const xi = Math.floor((u.cx + dx*t)*r.k), yi = Math.floor((u.cy + dy*t)*r.k);
+    if (xi < 0 || yi < 0 || xi >= r.W || yi >= r.H) break;
+    if (ids.has(r.map[yi*r.W + xi])) last = t;
+  }
+  return last >= 0 ? last : null;
+}
 function placeMarkers(p, all){
   if (!p.box) return;
   const r = RT[p.id], um = unitMap(p), units = [...um.values()];
-  const s = p.box.w/p.nw, off = 40/s, R = (MR + 4)/s, placed = [];
+  const s = p.box.w/p.nw, off = 26/s, R = (MR + 4)/s, placed = [];
   if (!all) p.parts.forEach(pt => { if (pt.label) placed.push(pt.label); });
   for (const pt of p.parts){
     if (!all && pt.label) continue;
@@ -544,7 +571,8 @@ function placeMarkers(p, all){
     let best = null, bs = -1e18;
     for (let a = 0; a < 16; a++){
       const ang = a/16*Math.PI*2, dx = Math.cos(ang), dy = Math.sin(ang);
-      let ext = 0; for (const q of u.samples){ const e = (q[0]-u.cx)*dx + (q[1]-u.cy)*dy; if (e > ext) ext = e; }
+      let ext = rayExit(r, u, dx, dy);
+      if (ext == null){ ext = 0; for (const q of u.samples){ const e = (q[0]-u.cx)*dx + (q[1]-u.cy)*dy; if (e > ext) ext = e; } }
       const x = u.cx + dx*(ext + off), y = u.cy + dy*(ext + off);
       let sc = 0;
       if (x < R || y < R || x > p.nw - R || y > p.nh - R) sc -= 5000;
@@ -647,17 +675,14 @@ function zoomRender(p, z, P){
 // one entry of the parts list; while editing, empty fields show a faint example
 const EX = { name: 'Top cover', color: 'PANTONE Cool Gray 11 U', mf: 'ABS / Matte paint' };
 function listItem(p, pt, ix, inter){
-  const g = t => inter ? el('span', { class: 'ghost' }, t) : null, j = (...a) => a.map(x => (x || '').trim()).filter(Boolean).join(' / ');
-  let lines;
-  if (S.meta.specFormat === 'inline') lines = specLines(pt);
-  else {
-    lines = [(pt.color || '').trim() || g(EX.color), j(pt.material, pt.finish) || g(EX.mf)];
-    (pt.note || '').split('\n').map(x => x.trim()).filter(Boolean).forEach(x => lines.push(x.startsWith('*') ? x : '* ' + x));
-    lines = lines.filter(Boolean);
-  }
-  return el('div', { class: 'li' + (inter && ui.selPart === pt.uid ? ' on' : ''), 'data-part': inter ? pt.uid : null },
-    el('div', { class: 'li-h' }, el('span', { class: 'li-dot' }, p.startNum + ix), el('span', {}, (pt.name || '').trim() || g(EX.name))),
-    el('div', { class: 'li-b' }, lines.map((l, k) => k ? [el('br'), l] : l)));
+  if (!inter) return el('div', { class: 'li' },
+    el('div', { class: 'li-h' }, el('span', { class: 'li-dot' }, p.startNum + ix), el('span', {}, pt.name || '')),
+    el('div', { class: 'li-b' }, specLines(pt).map((l, k) => k ? [el('br'), l] : l)));
+  const j = (...a) => a.map(x => (x || '').trim()).filter(Boolean).join(' / ');
+  const ed = (f, v, ph, cls = '') => el('div', { class: 'ed ' + cls, contenteditable: 'true', spellcheck: 'false', 'data-pf': pt.uid + '|' + f, 'data-ph': ph }, v || null);
+  return el('div', { class: 'li' + (ui.selPart === pt.uid ? ' on' : ''), 'data-part': pt.uid },
+    el('div', { class: 'li-h' }, el('span', { class: 'li-dot' }, p.startNum + ix), ed('name', (pt.name || '').trim(), EX.name)),
+    el('div', { class: 'li-b' }, ed('color', (pt.color || '').trim(), EX.color), ed('mf', j(pt.material, pt.finish), EX.mf), ed('note', (pt.note || '').trim(), '* Note', 'note')));
 }
 // size the list from its text: column width = widest entry, columns = as few as fit the page height
 function autoList(p){
@@ -754,7 +779,7 @@ function drawMarkers(svg, p, inter){
       if (d > MR + 6){ const ux = dx/d, uy = dy/d;
         g.append(sv('line', { x1: L.x + ux*(MR + 2), y1: L.y + uy*(MR + 2), x2: A.x - ux*2, y2: A.y - uy*2, stroke: '#e60012', 'stroke-width': '1.4', 'marker-end': 'url(#ah)' })); } }
     g.append(sv('circle', { cx: L.x, cy: L.y, r: MR, fill: '#e60012' }));
-    const t = sv('text', { x: L.x, y: L.y + 1, 'text-anchor': 'middle', 'dominant-baseline': 'central', fill: '#fff', 'font-size': '10.5', 'font-weight': '700', 'font-family': 'Pretendard, sans-serif' });
+    const t = sv('text', { x: L.x, y: L.y + 1, 'text-anchor': 'middle', 'dominant-baseline': 'central', fill: '#fff', 'font-size': '13', 'font-weight': '700', 'font-family': 'Pretendard, sans-serif' });
     t.textContent = p.startNum + ix; g.append(t); svg.append(g);
     if (inter && ui.selPart === pt.uid && pt.anchor){ const A = toPg(p, pt.anchor);
       svg.append(sv('circle', { cx: A.x, cy: A.y, r: 6, fill: '#fff', stroke: '#e60012', 'stroke-width': '2', class: 'anc', 'data-anc': pt.uid })); }
@@ -801,8 +826,30 @@ function renderPage(){
   const p = curPage(); if (!p) return;
   if (p.type === 'spec') autoList(p);
   const pg = buildPage(p, cur, true); w.append(pg);
-  if (p.type === 'spec') checkOverflow(pg);
+  if (p.type === 'spec'){ checkOverflow(pg); applySolo(); }
   updateTop();
+}
+// solo: one part stays at full strength, the other parts and texts fade
+function applySolo(){
+  const p = curPage(), pg = $('#pageWrap .page'); if (!pg || !p || p.type !== 'spec') return;
+  const id = ui.selPart; pg.classList.toggle('solo', !!id);
+  pg.querySelectorAll('.li').forEach(li => { li.classList.toggle('dim', !!id && li.dataset.part !== id); li.classList.toggle('on', !!id && li.dataset.part === id); });
+  pg.querySelectorAll('.mk').forEach(g => g.classList.toggle('dim', !!id && g.dataset.mk !== id));
+  pg.querySelectorAll('.solo-cv').forEach(c => c.remove());
+  const pt = id && p.parts.find(x => x.uid === id), r = RT[p.id];
+  if (!pt || !p.box || !r || r.key !== rtKey(p)) return;
+  const keep = new Set(pt.key[0] === 'k' ? keyIds(pt.key) : []), W = r.W, H = r.H, inK = new Uint8Array(W*H);
+  for (let i = 0; i < r.map.length; i++) if (keep.has(r.map[i])) inK[i] = 1;
+  const c = el('canvas', { class: 'solo-cv', style: { left: p.box.x + 'px', top: p.box.y + 'px', width: p.box.w + 'px', height: p.box.h + 'px' } });
+  c.width = W; c.height = H;
+  const ctx = c.getContext('2d'), im = ctx.createImageData(W, H), D = im.data, [R, G, B] = hexToRgb(pageBg(p));
+  for (let y = 0; y < H; y++) for (let x = 0; x < W; x++){
+    const i = y*W + x;
+    if (inK[i] || (x > 0 && inK[i-1]) || (x < W-1 && inK[i+1]) || (y > 0 && inK[i-W]) || (y < H-1 && inK[i+W])) continue;
+    const q = i*4; D[q] = R; D[q+1] = G; D[q+2] = B; D[q+3] = 205;
+  }
+  ctx.putImageData(im, 0, 0);
+  pg.querySelector('.mk-layer').before(c);
 }
 function checkOverflow(pg){
   const l = pg.querySelector('.pg-list'), w = $('#ovf'); if (!l || !w) return;
@@ -915,7 +962,8 @@ async function setCapture(p, file){
     Object.assign(p, { imageId: id, nw, nh, objects: [], groups: [], excluded: [], manual: [], parts: [] }); p.det.bg = null; fitBox(p);
   }
   await runDetect(p);
-  toast((had ? 'Capture replaced. Numbers and specs are kept by position.' : `Found ${p.objects.length} objects`) + note);
+  if (!had) await doNumber(p, true, true);
+  toast((had ? 'Image replaced. Numbers and specs are kept by position.' : `Found ${p.parts.length} parts`) + note);
 }
 
 // ---------- panel ----------
@@ -991,36 +1039,30 @@ function renderPanel(){
     el('p', { class: 'hint' }, '라이노 ViewCaptureToFile / ViewCaptureToClipboard로 만든 PNG를 쓰면 돼요. 붙여넣기(⌘V)도 됩니다.'),
     el('p', { class: 'hint' }, '업로드할 때 모델 주변의 빈 여백을 자동으로 잘라내요. 그래서 뷰포트 크기가 달라도 장표에 같은 크기로 들어가요.'),
     p.imageId ? el('p', { class: 'hint' }, '같은 구도로 새 이미지를 올리면 넘버와 사양이 위치 기준으로 유지돼요.') : null));
-  if (p.imageId){
-    P.append(sec('Clean up — select · group · exclude',
+  if (p.imageId || p.parts.length){
+    const um = unitMap(p), n = p.parts.length;
+    const plist = el('div', { class: 'plist' });
+    if (ui.partsOpen) p.parts.forEach((pt, ix) => plist.append(partRow(p, pt, ix, plist, um)));
+    const order = el('div', { class: 'seg ico' }, [['row', ICON_ROWS, 'Rows: top→bottom, left→right'], ['col', ICON_COLS, 'Columns: left→right, top→bottom']].map(([v, svg, tip]) => {
+      const b = el('button', { class: p.order === v ? 'on' : '', title: tip, onclick: () => { if (p.order === v) return; commit(); p.order = v; doNumber(p, true, true); } }); b.innerHTML = svg; return b; }));
+    P.append(sec('Parts',
       seg([['select', 'Select V'], ['lasso', 'Lasso L'], ['add', 'Add A'], ['move', 'Move M']], ui.tool, setTool),
-      el('div', { class: 'row wrap' },
-        btn('Group (G)', groupSel, 'pri', selN < 2), btn('Ungroup', ungroupSel, '', !selN),
-        btn('Exclude (Del)', excludeSel, '', !selN), btn('Restore', restoreSel, '', !selN),
+      el('div', { class: 'row wrap' }, order,
+        iconBtn(ICON_REFRESH, n ? 'Renumber and re-place markers' : 'Number parts', () => doNumber(p, true)),
+        el('span', { style: { flex: '1' } }),
+        btn('Ungroup', ungroupSel, '', !selN), btn('Exclude', excludeSel, '', !selN),
         p.excluded.length ? btn('Restore all', () => { commit(); p.excluded = []; syncParts(p); renderAll(); }) : null),
-      el('div', { class: 'stat' }, `${selN} selected`),
-      el('p', { class: 'hint' }, 'Shift를 누르고 클릭하면 추가로 선택돼요.'),
-      el('p', { class: 'hint' }, '참고 사진이나 흐린 배경 부품은 제외하고, 너무 얇아 인식되지 않은 부품은 Add로 직접 추가하세요.')));
-    P.append(sec('Numbering',
-      seg([['row', 'Rows  top→bottom, left→right'], ['col', 'Columns  left→right, top→bottom']], p.order, v => { commit(); p.order = v; renderPanel(); }),
-      el('div', { class: 'row wrap' },
-        btn(p.parts.length ? 'Renumber' : 'Number parts', () => doNumber(p), 'pri'),
-        p.parts.length ? btn('Auto-place markers', () => { commit(); placeMarkers(p, true); renderAll(); }) : null),
-      el('p', { class: 'hint' }, 'R/L 부품이 좌우 열로 나뉜 배치는 Columns가 맞아요.'), el('p', { class: 'hint' }, '번호를 바꾸려면 마커를 다른 마커 위에 놓거나(서로 교환) 아래 리스트를 끌어 올리세요. 마커를 클릭하면 화살표 끝점도 옮길 수 있어요.')));
+      el('div', { class: 'stat' }, `${n} parts · ${selN} selected`),
+      el('div', { id: 'ovf', class: 'warn', hidden: true }, 'The list overflows the page. Split the image across another specification page.'),
+      n ? el('button', { class: 'btn ptog', onclick: () => { ui.partsOpen = !ui.partsOpen; renderPanel(); } }, el('span', {}, ui.partsOpen ? 'Hide list' : `Edit list (${n})`), el('span', {}, ui.partsOpen ? '−' : '+')) : null,
+      plist,
+      el('p', { class: 'hint' }, '이미지를 올리면 부품을 찾아 자동으로 넘버를 붙여요. 여러 조각을 올가미(L)로 감싸면 한 부품으로 묶이고 넘버도 하나로 합쳐져요.'),
+      el('p', { class: 'hint' }, '이미지에서 부품을 누르면 그 부품의 텍스트만, 페이지의 텍스트를 누르면 그 부품만 진하게 보여요(솔로 모드). 빈 곳을 누르거나 Esc로 해제해요.'),
+      el('p', { class: 'hint' }, '번호 순서: 가로줄 아이콘은 위→아래·왼→오른쪽, 세로줄 아이콘은 왼→오른쪽·위→아래예요. 새로고침 아이콘은 번호와 마커 위치를 다시 매겨요.'),
+      el('p', { class: 'hint' }, '마커를 다른 마커 위에 놓으면 번호가 서로 바뀌어요. 마커를 클릭하면 화살표 끝점도 옮길 수 있어요.'),
+      el('p', { class: 'hint' }, '흐린 배경 부품은 Exclude(Del)로 빼고, 너무 얇아 인식되지 않은 부품은 Add(A)로 직접 추가하세요.'),
+      el('p', { class: 'hint' }, '페이지의 텍스트를 눌러 바로 수정할 수 있어요. 리스트 폭과 열 수는 텍스트 길이에 맞춰 자동으로 정해져요.')));
   }
-  const plist = el('div', { class: 'plist' });
-  if (ui.partsOpen) p.parts.forEach((pt, ix) => plist.append(partRow(p, pt, ix, plist)));
-  const ps = sec('Parts list',
-    el('div', { id: 'ovf', class: 'warn', hidden: true }, 'The list overflows the page. Split the image across another specification page.'),
-    el('div', { class: 'stat' }, p.parts.length ? `${p.parts.length} parts` : 'Number the parts to fill this list.'),
-    el('p', { class: 'hint' }, '리스트의 폭과 열 수는 입력한 텍스트 길이에 맞춰 자동으로 정해져요.'),
-    el('p', { class: 'hint' }, '비어 있는 항목은 페이지에 예시가 흐리게 표시되고, PDF에는 나오지 않아요.'),
-    plist);
-  const h3 = ps.firstChild; h3.classList.add('tog');
-  h3.insertBefore(el('span', { class: 'caret' }, ui.partsOpen ? '−' : '+'), h3.querySelector('.info'));
-  const inf = h3.querySelector('.info'); if (inf){ inf.style.marginLeft = '8px'; inf.addEventListener('click', e => e.stopPropagation()); }
-  h3.addEventListener('click', () => { ui.partsOpen = !ui.partsOpen; renderPanel(); });
-  P.append(ps);
   P.append(sec('Reference image · text',
     el('div', { class: 'row' }, btn('+ Image', () => addRef(p, 'image')), btn('+ Text', () => addRef(p, 'text'))),
     p.refs.map(rf => el('div', { class: 'rrow' },
@@ -1030,6 +1072,9 @@ function renderPanel(){
     el('p', { class: 'hint' }, '빈 자리를 찾아 자동으로 들어가요. 페이지에서 끌어서 옮기고, 오른쪽 아래 모서리로 크기를 조절하세요.')));
   P.scrollTop = st;
 }
+const ICON_ROWS = '<svg viewBox="0 0 24 24"><path d="M4 7h16M4 12h16M4 17h16"/></svg>';
+const ICON_COLS = '<svg viewBox="0 0 24 24"><path d="M7 4v16M12 4v16M17 4v16"/></svg>';
+const ICON_REFRESH = '<svg viewBox="0 0 24 24"><path d="M20 11a8 8 0 0 0-14.3-4.9L4 8"/><path d="M4 4v4h4"/><path d="M4 13a8 8 0 0 0 14.3 4.9L20 16"/><path d="M20 20v-4h-4"/></svg>';
 const ICON_CENTER = '<svg viewBox="0 0 24 24"><rect x="7.5" y="7.5" width="9" height="9" rx="1.5"/><path d="M12 2.5v3M12 18.5v3M2.5 12h3M18.5 12h3"/></svg>';
 function iconBtn(svg, title, fn){ const b = el('button', { class: 'btn icon', title, onclick: fn }); b.innerHTML = svg; return b; }
 // upload button, or the uploaded file name (click to replace) with a remove button
@@ -1053,10 +1098,25 @@ function bgRow(p, after){
     el('span', { class: 'mut' }, p.bg ? 'This page' : 'Default'),
     p.bg ? btn('Use default', () => { commit(); p.bg = ''; renderAll(); }) : null);
 }
-function partRow(p, pt, ix, box){
+const thumbCache = new Map();
+function partThumb(p, u){
+  const im = el('img', { class: 'pthumb', alt: '' });
+  if (!u || !p.imageId) return im;
+  const key = p.imageId + '|' + u.key; if (thumbCache.has(key)){ im.src = thumbCache.get(key); return im; }
+  getImg(p.imageId).then(img => {
+    const pad = Math.max(8, (u.bbox[2] - u.bbox[0] + u.bbox[3] - u.bbox[1])*0.06);
+    const b = u.manual ? [u.cx - 40, u.cy - 40, u.cx + 40, u.cy + 40] : [u.bbox[0] - pad, u.bbox[1] - pad, u.bbox[2] + pad, u.bbox[3] + pad];
+    const x0 = Math.max(0, b[0]), y0 = Math.max(0, b[1]), w = Math.min(p.nw, b[2]) - x0, h = Math.min(p.nh, b[3]) - y0, T = 72;
+    const c = document.createElement('canvas'); c.width = c.height = T; const sc = Math.min(T/w, T/h);
+    c.getContext('2d').drawImage(img, x0, y0, w, h, (T - w*sc)/2, (T - h*sc)/2, w*sc, h*sc);
+    const url = c.toDataURL(); thumbCache.set(key, url); im.src = url;
+  });
+  return im;
+}
+function partRow(p, pt, ix, box, um){
   const grip = el('span', { class: 'grip', draggable: 'true', title: 'Drag to reorder' }, '⠿');
   const row = el('div', { class: 'prow' + (ui.selPart === pt.uid ? ' on' : ''), 'data-uid': pt.uid },
-    el('div', { class: 'prow-h' }, grip, el('span', { class: 'dot' }, p.startNum + ix), inp(pt, 'name', { ph: 'Part name (e.g. Body side housing R)' }),
+    el('div', { class: 'prow-h' }, grip, el('span', { class: 'dot' }, p.startNum + ix), partThumb(p, um && um.get(pt.key)), inp(pt, 'name', { ph: 'Part name (e.g. Body side housing R)' }),
       el('button', { class: 'ib', title: 'Copy specs to the next part (R→L name auto)', onclick: () => copyDown(p, ix) }, '↓'),
       el('button', { class: 'ib', title: 'Delete this number (object gets excluded)', onclick: () => deletePart(p, pt.uid) }, '×')),
     el('div', { class: 'prow-g' },
@@ -1105,7 +1165,12 @@ function groupSel(){
   const p = curPage(), ids = selObjIds(); if (ids.length < 2){ toast('Select 2 or more objects'); return; }
   commit(); const set = new Set(ids);
   p.groups = p.groups.map(g => g.filter(i => !set.has(i))).filter(g => g.length > 1); p.groups.push(ids);
-  p.excluded = p.excluded.filter(i => !set.has(i)); syncParts(p); renderAll(); toast(`Grouped ${ids.length} pieces into one part`);
+  p.excluded = p.excluded.filter(i => !set.has(i)); syncParts(p);
+  const key = 'k' + [...ids].sort((a, b) => a - b).join('.');
+  let pt = p.parts.find(x => x.key === key);
+  if (!pt && p.parts.length){ pt = newPart(key); p.parts.push(pt); }
+  if (pt){ pt.label = null; placeMarkers(p, false); ui.selPart = pt.uid; }
+  renderAll(); toast(pt ? `Grouped ${ids.length} pieces → part ${p.startNum + p.parts.indexOf(pt)}` : `Grouped ${ids.length} pieces into one part`);
 }
 function ungroupSel(){ const p = curPage(), set = new Set(selObjIds()); commit(); p.groups = p.groups.filter(g => !g.some(i => set.has(i))); syncParts(p); renderAll(); }
 function excludeSel(){
@@ -1171,6 +1236,7 @@ function startDrag(e, move, up){
 }
 function onDown(e){
   if (e.button !== 0 || e.target.isContentEditable) return;
+  const ae = document.activeElement; if (ae && ae.isContentEditable && pw.contains(ae)) ae.blur();
   const p = curPage(), t = e.target, P = toPage(e);
   if (isEnd(p)){ openBgPop(p, e.clientX, e.clientY); return; }
   const attr = (n) => { const x = t.closest(`[${n}]`); return x ? x.getAttribute(n) : null; };
@@ -1243,15 +1309,15 @@ function onDown(e){
     case 'select': {
       if (!e.shiftKey) ui.sel.clear(); ui.selPart = null;
       const hit = inImg ? hitTest(p, r, I) : null;
-      if (typeof hit === 'string'){ ui.sel.has(hit) && e.shiftKey ? ui.sel.delete(hit) : ui.sel.add(hit); }
-      else if (hit) selectObj(p, hit, e.shiftKey);
+      if (typeof hit === 'string'){ ui.sel.has(hit) && e.shiftKey ? ui.sel.delete(hit) : ui.sel.add(hit); ui.selPart = (p.parts.find(x => x.key === hit) || {}).uid || null; }
+      else if (hit){ selectObj(p, hit, e.shiftKey); ui.selPart = (p.parts.find(x => x.key[0] === 'k' && keyIds(x.key).includes(hit)) || {}).uid || null; }
       renderAll(); break;
     }
     case 'lasso': {
       const pts = [P], ls = $('.lasso'), path = sv('polyline', { fill: 'rgba(230,0,18,.08)', stroke: '#e60012', 'stroke-width': '2', 'stroke-dasharray': '8 6' });
       ls.append(path);
       startDrag(e, Q => { pts.push(Q); path.setAttribute('points', pts.map(q => q.x + ',' + q.y).join(' ')); },
-        () => { if (!e.shiftKey) ui.sel.clear(); if (pts.length > 2) lassoSelect(p, pts.map(q => fromPg(p, q))); renderAll(); });
+        () => { if (!e.shiftKey) ui.sel.clear(); if (pts.length > 2) lassoSelect(p, pts.map(q => fromPg(p, q))); if (selObjIds().length > 1) groupSel(); else renderAll(); });
       break;
     }
     case 'add': {
@@ -1316,16 +1382,41 @@ document.addEventListener('pointerdown', e => { if (!$('#pop').hidden && !e.targ
 // ---------- inline text editing (cover footer, spec title) ----------
 let edC = false;
 const pw = $('#pageWrap');
-pw.addEventListener('focusin', e => { if (e.target.isContentEditable) edC = false; });
+let ptrDown = false, pendingRender = false;
+document.addEventListener('pointerdown', () => { ptrDown = true; }, true);
+document.addEventListener('pointerup', () => { ptrDown = false; if (pendingRender){ pendingRender = false; setTimeout(renderAll, 0); } }, true);
+pw.addEventListener('focusin', e => {
+  const t = e.target; if (!t.isContentEditable) return; edC = false;
+  if (t.dataset.pf){ ui.selPart = t.dataset.pf.split('|')[0]; ui.sel.clear(); applySolo(); renderPanel(); }
+});
 pw.addEventListener('input', e => {
   const t = e.target; if (!t.isContentEditable) return;
   if (!edC){ commit(); edC = true; }
   const v = t.textContent; if (!v) t.replaceChildren();
-  if (t.dataset.meta) S.meta[t.dataset.meta] = v; else if (t.dataset.title) curPage().title = v;
+  if (t.dataset.meta) S.meta[t.dataset.meta] = v;
+  else if (t.dataset.title) curPage().title = v;
+  else if (t.dataset.pf){
+    const [id, f] = t.dataset.pf.split('|'), pt = curPage().parts.find(x => x.uid === id); if (!pt) return;
+    if (f === 'mf'){ const a = v.split('/').map(x => x.trim()); pt.material = a[0] || ''; pt.finish = a.slice(1).filter(Boolean).join(' / '); }
+    else if (f === 'note') pt.note = t.innerText.replace(/\n+$/, '');
+    else pt[f] = v;
+  }
   dirty();
 });
-pw.addEventListener('focusout', e => { if (!e.target.isContentEditable) return; if (e.target.dataset.title) renderPage(); renderSide(); });
-pw.addEventListener('keydown', e => { if (e.target.isContentEditable && e.key === 'Enter'){ e.preventDefault(); e.target.blur(); } });
+pw.addEventListener('focusout', e => {
+  const t = e.target; if (!t.isContentEditable) return;
+  if (t.dataset.pf && t.dataset.pf.endsWith('|note')){
+    const pt = curPage().parts.find(x => x.uid === t.dataset.pf.split('|')[0]);
+    if (pt) pt.note = (pt.note || '').split('\n').map(x => x.trim()).filter(Boolean).map(x => x.startsWith('*') ? x : '* ' + x).join('\n');
+  }
+  if (ptrDown){ pendingRender = true; return; }
+  setTimeout(() => { const a = document.activeElement; if (a && a.isContentEditable && pw.contains(a)){ renderSide(); renderPanel(); } else renderAll(); }, 0);
+});
+pw.addEventListener('keydown', e => {
+  const t = e.target; if (!t.isContentEditable || e.key !== 'Enter') return;
+  e.preventDefault();
+  if (t.dataset.pf && t.dataset.pf.endsWith('|note') && !e.metaKey) document.execCommand('insertLineBreak'); else t.blur();
+});
 pw.addEventListener('paste', e => {
   if (!e.target.isContentEditable) return;
   e.preventDefault(); e.stopPropagation();
