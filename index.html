@@ -992,15 +992,6 @@ function renderPanel(){
     el('p', { class: 'hint' }, '업로드할 때 모델 주변의 빈 여백을 자동으로 잘라내요. 그래서 뷰포트 크기가 달라도 장표에 같은 크기로 들어가요.'),
     p.imageId ? el('p', { class: 'hint' }, '같은 구도로 새 이미지를 올리면 넘버와 사양이 위치 기준으로 유지돼요.') : null));
   if (p.imageId){
-    const det = (key) => (v, fin) => { p.det[key] = v; if (fin) runDetect(p); };
-    P.append(sec('Detection',
-      range('Tolerance', p.det.tol, 4, 120, 1, det('tol')),
-      range('Merge', p.det.merge, 0, 24, 1, det('merge'), v => v + 'px'),
-      range('Min size', p.det.minArea, 0, 3000, 10, det('minArea')),
-      check('Knock out capture background (use page color)', p.det.knockout, v => { commit(); p.det.knockout = v; renderPage(); }),
-      check('Show detection colors', ui.showDet, v => { ui.showDet = v; renderPage(); }),
-      el('div', { class: 'stat' }, `Objects ${p.objects.length} · Groups ${p.groups.length} · Excluded ${p.excluded.length} · Manual ${p.manual.length}`),
-      el('p', { class: 'hint' }, '포고핀처럼 점이 흩어진 부품은 Merge를 올리세요. 흐린 배경 부품이 잡히면 Tolerance를 올리세요.')));
     P.append(sec('Clean up — select · group · exclude',
       seg([['select', 'Select V'], ['lasso', 'Lasso L'], ['add', 'Add A'], ['move', 'Move M']], ui.tool, setTool),
       el('div', { class: 'row wrap' },
