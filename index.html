@@ -154,7 +154,7 @@ input[type=color]{width:32px;height:30px;border:0;border-radius:7px;padding:3px;
 .pg-foot .num{position:absolute;left:50%;transform:translateX(-50%);letter-spacing:0;font-size:17px}
 .pg-foot .flogo{display:flex;align-items:center}
 .pg-title{position:absolute;left:62px;top:40px;font-size:40px;font-weight:800;letter-spacing:-.01em}
-.pg-list{position:absolute;left:62px;column-gap:calc(22px*var(--ls,1));column-fill:auto;overflow:hidden;--ls:1}
+.pg-list{position:absolute;left:62px;column-gap:var(--gap,36px);column-fill:auto;overflow:hidden;--ls:1}
 .li{break-inside:avoid;padding-bottom:calc(22px*var(--ls));white-space:nowrap}
 .li-h{display:flex;align-items:center;gap:calc(12px*var(--ls));min-width:0;font-size:calc(22px*var(--ls));font-weight:700;margin-bottom:calc(4px*var(--ls))}
 .li-dot{width:calc(22px*var(--ls));height:calc(22px*var(--ls));border-radius:50%;background:var(--red);color:#fff;font-size:calc(13px*var(--ls));font-weight:700;display:grid;place-items:center;flex:none}
@@ -700,16 +700,18 @@ function listItem(p, pt, ix, inter){
       (pt.note || '').trim() ? ed('note', pt.note.trim(), '* Note', 'note') : null));
 }
 // size the list from its text: column width = widest entry, columns = as few as fit the page height
+// space between list columns: scales with text size but never so tight that columns touch
+const colGap = p => Math.max(24, Math.round(36*(p.listScale || 1)));
 function autoList(p){
-  const ls = p.listScale || 1, top = listTop(p), H = 985 - top, GAP = Math.round(22*ls);
+  const ls = p.listScale || 1, top = listTop(p), H = 985 - top - 4, GAP = colGap(p);
   let w = 0, cols = 1;
   if (p.parts.length){
-    const host = el('div', { class: 'page', style: { position: 'absolute', left: '-20000px', top: '0', height: 'auto', width: '6000px', visibility: 'hidden' } });
+    const host = el('div', { class: 'page inter', style: { position: 'absolute', left: '-20000px', top: '0', height: 'auto', width: '6000px', visibility: 'hidden' } });
     host.style.setProperty('--ls', ls);
     const items = p.parts.map((pt, ix) => listItem(p, pt, ix, true));
     items.forEach(it => { it.style.width = 'max-content'; host.append(it); });
     document.body.append(host);
-    w = Math.max(Math.round(120*ls), ...items.map(it => Math.ceil(it.getBoundingClientRect().width)));
+    w = Math.max(Math.round(120*ls), ...items.map(it => Math.ceil(it.getBoundingClientRect().width) + 2));
     items.forEach(it => { it.style.width = w + 'px'; });
     const hs = items.map(it => it.getBoundingClientRect().height);
     host.remove();
@@ -720,7 +722,7 @@ function autoList(p){
   if (listW === p.listW && cols === p.listCols && ls === p.laidLs) return;
   p.laidLs = ls;
   const fitted = p.box && ['x', 'y', 'w', 'h'].every(k => Math.abs(p.box[k] - fitDims(p)[k]) < 1.5);
-  p.listW = listW; p.listCols = cols;
+  p.listW = listW; p.listCols = cols; p.colW = w;
   if (fitted) fitBox(p);
 }
 function buildPage(p, i, inter){
@@ -754,7 +756,7 @@ function buildPage(p, i, inter){
   titleEl(page, p, inter);
   const top = listTop(p);
   const list = el('div', { class: 'pg-list', style: { top: top + 'px', width: p.listW + 'px', height: (985 - top) + 'px', columnCount: p.listCols } });
-  list.style.setProperty('--ls', p.listScale || 1);
+  list.style.setProperty('--ls', p.listScale || 1); list.style.setProperty('--gap', colGap(p) + 'px');
   p.parts.forEach((pt, ix) => list.append(listItem(p, pt, ix, inter)));
   page.append(list);
   if (p.imageId && p.box){
@@ -842,8 +844,16 @@ function renderAll(){ renderSide(); renderPanel(); renderPage(); }
 function renderPage(){
   const w = $('#pageWrap'); w.replaceChildren(); w.className = 't-' + ui.tool;
   const p = curPage(); if (!p) return;
+  const before = p.type === 'spec' ? JSON.stringify([p.listW, p.listCols, p.box]) : '';
   if (p.type === 'spec') autoList(p);
-  const pg = buildPage(p, cur, true); w.append(pg);
+  let pg = buildPage(p, cur, true); w.append(pg);
+  for (let n = 0; p.type === 'spec' && p.parts.length && n < 4; n++){
+    const l = pg.querySelector('.pg-list'); if (!l || l.scrollWidth <= l.clientWidth + 2) break;
+    const fitted = p.box && ['x', 'y', 'w', 'h'].every(k => Math.abs(p.box[k] - fitDims(p)[k]) < 1.5);
+    p.listCols++; p.listW += (p.colW || 240) + colGap(p); if (fitted) fitBox(p);
+    w.replaceChildren(); pg = buildPage(p, cur, true); w.append(pg);
+  }
+  if (p.type === 'spec' && JSON.stringify([p.listW, p.listCols, p.box]) !== before) renderSide();   // keep the thumbnail in step with the new layout
   if (p.type === 'spec'){ checkOverflow(pg); applySolo(); }
   updateTop();
 }
