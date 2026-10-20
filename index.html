@@ -96,7 +96,8 @@ textarea.in{resize:vertical;line-height:1.45}
 .file .ib:hover{background:var(--fill2)}
 .seg.ico{flex:none}
 .row.nw{flex-wrap:nowrap}
-.selact{margin-left:auto;display:flex;align-items:center;gap:4px}
+.tbox{display:inline-flex;flex-direction:column;max-width:100%}
+.selact{margin-left:auto;display:flex;align-items:center;gap:6px}
 .selact .mut{font-size:11px;margin-right:2px;white-space:nowrap}
 [data-tip]{position:relative}
 [data-tip]:hover::after{content:attr(data-tip);position:absolute;top:calc(100% + 6px);left:50%;transform:translateX(-50%);background:var(--ink);color:#fff;font-size:11px;line-height:1;padding:5px 7px;border-radius:6px;white-space:nowrap;z-index:40;pointer-events:none;letter-spacing:0;text-transform:none}
@@ -910,12 +911,12 @@ function drawOverlay(canvas, p, r){
   for (let i = 0; i < r.map.length; i++){ const o = r.map[i]; if (!o || o > n + 1) continue; const j = i*4, c = o*4; D[j] = col[c]; D[j+1] = col[c+1]; D[j+2] = col[c+2]; D[j+3] = col[c+3]; }
   ctx.putImageData(id, 0, 0);
   const byId = new Map(p.objects.map(o => [o.id, o])), lw = Math.max(1.5, 2*r.W/p.box.w);
-  ctx.setLineDash([6*lw, 4*lw]); ctx.lineWidth = lw;
+  ctx.setLineDash([2.5*lw, 2.5*lw]); ctx.lineWidth = lw;
   p.groups.forEach((g, gi) => {
     const os = g.map(i => byId.get(i)).filter(Boolean); if (!os.length) return;
     const b = [Math.min(...os.map(o => o.bbox[0])), Math.min(...os.map(o => o.bbox[1])), Math.max(...os.map(o => o.bbox[2])), Math.max(...os.map(o => o.bbox[3]))];
     const [R, G, B] = hsl((gi*67 + 200) % 360, 75, 42); ctx.strokeStyle = `rgb(${R|0},${G|0},${B|0})`;
-    ctx.strokeRect(b[0]*r.k - 3*lw, b[1]*r.k - 3*lw, (b[2]-b[0])*r.k + 6*lw, (b[3]-b[1])*r.k + 6*lw);
+    ctx.beginPath(); ctx.roundRect(b[0]*r.k - 4*lw, b[1]*r.k - 4*lw, (b[2]-b[0])*r.k + 8*lw, (b[3]-b[1])*r.k + 8*lw, 6*lw); ctx.stroke();
   });
   ctx.setLineDash([]);
   for (const m of p.manual){ const on = ui.sel.has('m' + m.id); ctx.fillStyle = on ? '#e60012' : 'rgba(37,99,235,.85)';
@@ -1165,16 +1166,17 @@ function renderPanel(){
         if (ordering) finishOrder(false);
         if (p.order === v) return; commit(); p.order = v; doNumber(p, true, true); } }); b.innerHTML = svg; return b; }));
     P.append(sec('Parts',
+      el('div', { class: 'tbox' },
       el('div', { class: 'row nw' }, el('div', { class: 'seg ico' }, [['select', ICON_SELECT, 'Select · V'], ['brush', ICON_BRUSH, 'Quick select · W'], ['move', ICON_MOVE, 'Move · M']].map(([v, svg, tip]) => {
         const b = el('button', { class: (ui.tool === 'add' || ui.tool === 'order' ? 'select' : ui.tool) === v ? 'on' : '', 'data-tip': tip, onclick: () => setTool(v) }); b.innerHTML = svg; return b; })),
         selN ? el('div', { class: 'selact' }, el('span', { class: 'mut' }, selN + ' sel.'),
-          iconBtn(ICON_GROUP, 'Group', groupSel), iconBtn(ICON_MINUS, 'Exclude', excludeSel)) : null),
+          el('div', { class: 'seg ico' }, Object.assign(iconBtn(ICON_GROUP, 'Group', groupSel), { className: '' }), Object.assign(iconBtn(ICON_MINUS, 'Exclude', excludeSel), { className: '' }))) : null),
       el('div', { class: 'row nw' }, order,
         iconBtn(ICON_TRASH, 'Delete', () => { if (ui.sel.size) excludeSel(); else if (ui.selPart) deletePart(p, ui.selPart); }),
         iconBtn(ICON_REFRESH, '초기화', () => doNumber(p, true)),
         el('div', { class: 'seg ico' },
           Object.assign(iconBtn(ICON_UNDO, 'Undo', undo), { id: 'bUndo', disabled: !undoS.length, className: '' }),
-          Object.assign(iconBtn(ICON_REDO, 'Redo', redo), { id: 'bRedo', disabled: !redoS.length, className: '' }))),
+          Object.assign(iconBtn(ICON_REDO, 'Redo', redo), { id: 'bRedo', disabled: !redoS.length, className: '' })))),
       ordering ? el('div', { class: 'ordbar' }, el('span', {}, `Click parts in order · ${ui.ordering.seq.length} / ${n}`),
         btn('Done', () => finishOrder(true), 'pri', !ui.ordering.seq.length), btn('Cancel', () => finishOrder(false))) : null,
       (() => {   // parts made by grouping several pieces — click a number to select it, then Ungroup appears
