@@ -106,12 +106,15 @@ textarea.in{resize:vertical;line-height:1.45}
 .addnote{padding:4px 9px;font-size:11px;background:transparent;color:var(--mut)}
 .addnote:hover{background:var(--fill)}
 .pfx{display:flex;align-items:center;background:#fff;border-radius:7px;min-width:0;padding-left:7px;border:1px solid transparent}
-.pfx span{color:var(--mut);font-size:10px;flex:none}
+.pfx span{color:var(--mut);font-size:11px;flex:none}
 .pfx .in{padding-left:4px!important}
 .pfx:focus-within{border-color:var(--red)}
 .pfx .in:focus{border-color:transparent}
 .addpart{width:100%;margin-top:6px;padding:10px;text-align:left}
 .addpart.on{background:var(--ink);color:#fff}
+.ordbar{display:flex;align-items:center;gap:6px;margin:8px 0;padding:8px 8px 8px 12px;border-radius:9px;background:#fff1f2;color:#be123c}
+.ordbar span{flex:1}
+#pageWrap.t-order .page{cursor:pointer}
 .pthumb{width:34px;height:34px;border-radius:6px;background:#fff;object-fit:contain;flex:none;box-shadow:inset 0 0 0 1px rgba(0,0,0,.06)}
 .sec h3.tog{cursor:pointer;user-select:none}
 .sec h3 .caret{margin-left:auto;color:var(--mut);text-transform:none;font-size:14px;line-height:1}
@@ -136,7 +139,8 @@ input[type=color]{width:32px;height:30px;border:0;border-radius:7px;padding:3px;
 .prow.dropA{box-shadow:inset 0 -3px 0 var(--red)}
 .prow.dragging{opacity:.4}
 .prow-h{display:flex;align-items:center;gap:6px}
-.prow-g{display:grid;grid-template-columns:1fr 1fr 1fr;gap:4px;margin:4px 0}
+.prow-g{display:grid;grid-template-columns:96px minmax(0,1fr);gap:4px;margin:4px 0}
+.prow-g .pfx{grid-column:1/-1}
 .prow .in{padding:5px 7px;background:#fff}
 .prow .in:focus{border-color:var(--red)}
 .grip{cursor:grab;color:#a1a1aa;font-size:14px;padding:0 2px;user-select:none}
@@ -533,7 +537,13 @@ function syncParts(p){
 async function doNumber(p, all = false, noCommit = false){
   if (!p.imageId){ toast('Upload an image first'); return; }
   await ensureRT(p); if (!noCommit) commit();
-  const us = sortUnits(getUnits(p), p.order, p.rowTol);
+  let us;
+  if (p.order === 'manual' && p.parts.length){
+    // keep the hand-set order; parts found later go to the end
+    syncParts(p);
+    const all0 = getUnits(p), byKey = new Map(all0.map(u => [u.key, u])), have = new Set(p.parts.map(x => x.key));
+    us = [...p.parts.map(x => byKey.get(x.key)).filter(Boolean), ...sortUnits(all0.filter(u => !have.has(u.key)), 'row', p.rowTol)];
+  } else us = sortUnits(getUnits(p), p.order === 'manual' ? 'row' : p.order, p.rowTol);
   const old = p.parts, used = new Set();
   p.parts = us.map(u => {
     let o = old.find(x => x.key === u.key && !used.has(x));
@@ -545,6 +555,25 @@ async function doNumber(p, all = false, noCommit = false){
   p.parts.forEach(pt => { if (pt.label && !pt.anchorManual) pt.anchor = nearestSample(um.get(pt.key), pt.label); });
   placeMarkers(p, all);
   renderAll(); toast(`Numbered ${p.parts.length} parts · ${p.startNum}–${p.startNum + p.parts.length - 1}`);
+}
+// ordering by hand: click parts on the image (or their markers) as 1, 2, 3…; specs stay with each part
+function startOrder(p){ ui.ordering = { pid: p.id, seq: [] }; ui.tool = 'order'; ui.selPart = null; ui.sel.clear(); renderAll(); toast('Click the parts in order, starting with 1'); }
+function finishOrder(apply){
+  const o = ui.ordering; if (!o) return; ui.ordering = null; ui.tool = 'select';
+  const p = S.pages.find(x => x.id === o.pid);
+  if (apply && p && o.seq.length){
+    commit();
+    const picked = o.seq.map(id => p.parts.find(x => x.uid === id)).filter(Boolean);
+    p.parts = [...picked, ...p.parts.filter(x => !o.seq.includes(x.uid))]; p.order = 'manual';
+    toast(`Order set by hand · ${picked.length} of ${p.parts.length} parts`);
+  }
+  renderAll();
+}
+function orderPick(p, uid){
+  const o = ui.ordering; if (!uid || o.seq.includes(uid)) return;
+  o.seq.push(uid);
+  if (o.seq.length === p.parts.length) finishOrder(true);
+  else { drawMarkers($('#pageWrap .mk-layer'), p, true); renderPanel(); }
 }
 function nearestSample(u, pt){
   let best = u.samples[0], bd = 1e18;
@@ -578,7 +607,7 @@ function placeMarkers(p, all){
   for (const pt of p.parts){
     if (!all && pt.label) continue;
     const u = um.get(pt.key); if (!u) continue;
-    let best = null, bs = -1e18;
+    let best = null, bestA = null, bs = -1e18;
     for (let a = 0; a < 16; a++){
       const ang = a/16*Math.PI*2, dx = Math.cos(ang), dy = Math.sin(ang);
       let ext = rayExit(r, u, dx, dy);
@@ -591,9 +620,10 @@ function placeMarkers(p, all){
       let clr = 1e9;
       for (const o of units){ if (o === u) continue; const ddx = Math.max(o.bbox[0]-x, 0, x-o.bbox[2]), ddy = Math.max(o.bbox[1]-y, 0, y-o.bbox[3]); clr = Math.min(clr, Math.hypot(ddx, ddy)); }
       sc += Math.min(clr, off*3) + Math.abs(dx)*off*0.4 - ext*0.05;
-      if (sc > bs){ bs = sc; best = { x, y }; }
+      if (sc > bs){ bs = sc; best = { x, y }; bestA = { x: u.cx + dx*ext, y: u.cy + dy*ext }; }
     }
-    pt.label = best; pt.anchor = nearestSample(u, best); pt.anchorManual = false; placed.push(best);
+    // arrow tip: where the ray leaves the part's outline, straight toward the marker
+    pt.label = best; pt.anchor = bestA; pt.anchorManual = false; placed.push(best);
   }
 }
 
@@ -701,7 +731,7 @@ function listItem(p, pt, ix, inter){
 }
 // size the list from its text: column width = widest entry, columns = as few as fit the page height
 // space between list columns: scales with text size but never so tight that columns touch
-const colGap = p => Math.max(24, Math.round(36*(p.listScale || 1)));
+const colGap = p => Math.max(16, Math.round(26*(p.listScale || 1)));
 function autoList(p){
   const ls = p.listScale || 1, top = listTop(p), H = 985 - top - 4, GAP = colGap(p);
   let w = 0, cols = 1;
@@ -800,7 +830,10 @@ function drawMarkers(svg, p, inter){
         g.append(sv('line', { x1: L.x + ux*(MR + 2), y1: L.y + uy*(MR + 2), x2: A.x - ux*2, y2: A.y - uy*2, stroke: '#e60012', 'stroke-width': '1.4', 'marker-end': 'url(#ah)' })); } }
     g.append(sv('circle', { cx: L.x, cy: L.y, r: MR, fill: '#e60012' }));
     const t = sv('text', { x: L.x, y: L.y + 1, 'text-anchor': 'middle', 'dominant-baseline': 'central', fill: '#fff', 'font-size': String(13*(p.listScale || 1)), 'font-weight': '700', 'font-family': 'Pretendard, sans-serif' });
-    t.textContent = p.startNum + ix; g.append(t); svg.append(g);
+    const ord = inter && ui.ordering && ui.ordering.pid === p.id ? ui.ordering.seq : null;
+    if (ord){ const k = ord.indexOf(pt.uid); t.textContent = k >= 0 ? k + 1 : ''; if (k < 0) g.setAttribute('opacity', '.35'); }
+    else t.textContent = p.startNum + ix;
+    g.append(t); svg.append(g);
     if (inter && ui.selPart === pt.uid && pt.anchor){ const A = toPg(p, pt.anchor);
       svg.append(sv('circle', { cx: A.x, cy: A.y, r: 6, fill: '#fff', stroke: '#e60012', 'stroke-width': '2', class: 'anc', 'data-anc': pt.uid })); }
   });
@@ -1067,8 +1100,13 @@ function renderPanel(){
     const um = unitMap(p), n = p.parts.length;
     const plist = el('div', { class: 'plist' });
     if (ui.partsOpen) p.parts.forEach((pt, ix) => plist.append(partRow(p, pt, ix, plist, um)));
-    const order = el('div', { class: 'seg ico' }, [['row', ICON_ROWS, 'Rows: top→bottom, left→right'], ['col', ICON_COLS, 'Columns: left→right, top→bottom']].map(([v, svg, tip]) => {
-      const b = el('button', { class: p.order === v ? 'on' : '', title: tip, onclick: () => { if (p.order === v) return; commit(); p.order = v; doNumber(p, true, true); } }); b.innerHTML = svg; return b; }));
+    const ordering = ui.ordering && ui.ordering.pid === p.id;
+    const order = el('div', { class: 'seg ico' }, [['row', ICON_ROWS, 'Rows: top→bottom, left→right'], ['col', ICON_COLS, 'Columns: left→right, top→bottom'], ['manual', ICON_HAND, 'By hand: click parts 1, 2, 3… on the image']].map(([v, svg, tip]) => {
+      const on = v === 'manual' ? (ordering || p.order === 'manual') : (!ordering && p.order === v);
+      const b = el('button', { class: on ? 'on' : '', title: tip, onclick: () => {
+        if (v === 'manual'){ if (ordering) finishOrder(false); else if (n) startOrder(p); return; }
+        if (ordering) finishOrder(false);
+        if (p.order === v) return; commit(); p.order = v; doNumber(p, true, true); } }); b.innerHTML = svg; return b; }));
     P.append(sec('Parts',
       seg([['select', 'Select V'], ['lasso', 'Lasso L'], ['move', 'Move M']], ui.tool === 'add' ? 'select' : ui.tool, setTool),
       el('div', { class: 'row wrap' }, order,
@@ -1076,6 +1114,8 @@ function renderPanel(){
         Object.assign(iconBtn(ICON_UNDO, 'Undo (⌘Z)', undo), { id: 'bUndo', disabled: !undoS.length }),
         Object.assign(iconBtn(ICON_REDO, 'Redo (⇧⌘Z)', redo), { id: 'bRedo', disabled: !redoS.length }),
       ),
+      ordering ? el('div', { class: 'ordbar' }, el('span', {}, `Click parts in order · ${ui.ordering.seq.length} / ${n}`),
+        btn('Done', () => finishOrder(true), 'pri', !ui.ordering.seq.length), btn('Cancel', () => finishOrder(false))) : null,
       el('div', { class: 'row wrap' },
         btn('Ungroup', ungroupSel, '', !selN), btn('Exclude', excludeSel, '', !selN),
         p.excluded.length ? btn('Restore all', () => { commit(); p.excluded = []; syncParts(p); renderAll(); }) : null),
@@ -1088,7 +1128,7 @@ function renderPanel(){
         ui.tool === 'add' ? 'Click the part on the image… (Esc to cancel)' : '+ Add') : null,
       el('p', { class: 'hint' }, '이미지를 올리면 부품을 찾아 자동으로 넘버를 붙여요. 여러 조각을 올가미(L)로 감싸면 한 부품으로 묶이고 넘버도 하나로 합쳐져요.'),
       el('p', { class: 'hint' }, '이미지에서 부품을 누르면 그 부품의 텍스트만, 페이지의 텍스트를 누르면 그 부품만 진하게 보여요(솔로 모드). 빈 곳을 누르거나 Esc로 해제해요.'),
-      el('p', { class: 'hint' }, '번호 순서: 가로줄 아이콘은 위→아래·왼→오른쪽, 세로줄 아이콘은 왼→오른쪽·위→아래예요. 초기화 아이콘은 번호와 마커 위치를 다시 매겨요. 옆의 화살표는 실행 취소·다시 실행이에요.'),
+      el('p', { class: 'hint' }, '번호 순서: 가로줄 아이콘은 위→아래·왼→오른쪽, 세로줄 아이콘은 왼→오른쪽·위→아래예요. 손 아이콘을 누르고 이미지에서 부품을 1번부터 차례로 클릭하면 직접 순서를 정할 수 있어요(입력한 사양은 부품을 따라가요). 초기화 아이콘은 번호와 마커 위치를 다시 매겨요. 옆의 화살표는 실행 취소·다시 실행이에요.'),
       el('p', { class: 'hint' }, '마커를 다른 마커 위에 놓으면 번호가 서로 바뀌어요. 마커를 클릭하면 화살표 끝점도 옮길 수 있어요.'),
       el('p', { class: 'hint' }, '흐린 배경 부품은 Exclude(Del)로 빼고, 너무 얇아 인식되지 않은 부품은 맨 아래 + Add를 누른 뒤 이미지에서 그 부품을 클릭해 추가하세요.'),
       el('p', { class: 'hint' }, '페이지의 텍스트를 눌러 바로 수정할 수 있어요. 리스트 폭과 열 수는 텍스트 길이에 맞춰 자동으로 정해져요.')));
@@ -1105,6 +1145,7 @@ function renderPanel(){
 const ICON_ROWS = '<svg viewBox="0 0 24 24"><path d="M4 7h16M4 12h16M4 17h16"/></svg>';
 const ICON_COLS = '<svg viewBox="0 0 24 24"><path d="M7 4v16M12 4v16M17 4v16"/></svg>';
 const ICON_REFRESH = '<svg viewBox="0 0 24 24"><path d="M20 11a8 8 0 0 0-14.3-4.9L4 8"/><path d="M4 4v4h4"/><path d="M4 13a8 8 0 0 0 14.3 4.9L20 16"/><path d="M20 20v-4h-4"/></svg>';
+const ICON_HAND = '<svg viewBox="0 0 24 24"><path d="M9 12V5.5a1.5 1.5 0 0 1 3 0V11"/><path d="M12 10.5v-6a1.5 1.5 0 0 1 3 0V11"/><path d="M15 10.5V7a1.5 1.5 0 0 1 3 0v6.5a6.5 6.5 0 0 1-6.5 6.5h-.8a6 6 0 0 1-4.9-2.6L3.6 13.6a1.5 1.5 0 0 1 2.4-1.8L9 15"/></svg>';
 const ICON_UNDO = '<svg viewBox="0 0 24 24"><path d="M9 14 4 9l5-5"/><path d="M4 9h10.5a5.5 5.5 0 0 1 0 11H11"/></svg>';
 const ICON_REDO = '<svg viewBox="0 0 24 24"><path d="m15 14 5-5-5-5"/><path d="M20 9H9.5a5.5 5.5 0 0 0 0 11H13"/></svg>';
 const ICON_CENTER = '<svg viewBox="0 0 24 24"><rect x="7.5" y="7.5" width="9" height="9" rx="1.5"/><path d="M12 2.5v3M12 18.5v3M2.5 12h3M18.5 12h3"/></svg>';
@@ -1303,6 +1344,17 @@ function onDown(e){
     const pt = p.parts.find(x => x.uid === ancId), svg = $('.mk-layer'); let c = false;
     startDrag(e, Q => { if (!c){ commit(); c = true; } pt.anchor = fromPg(p, Q); pt.anchorManual = true; drawMarkers(svg, p, true); }, () => renderAll());
     return;
+  }
+  if (ui.tool === 'order' && ui.ordering){
+    e.preventDefault();
+    let id = attr('data-mk');
+    if (!id && p.imageId && p.box){
+      const I = fromPg(p, P), r = RT[p.id] && RT[p.id].key === rtKey(p) ? RT[p.id] : null;
+      const hit = I.x >= 0 && I.y >= 0 && I.x <= p.nw && I.y <= p.nh ? hitTest(p, r, I) : null;
+      const pt = typeof hit === 'string' ? p.parts.find(x => x.key === hit) : hit ? p.parts.find(x => x.key[0] === 'k' && keyIds(x.key).includes(hit)) : null;
+      id = pt && pt.uid;
+    }
+    orderPick(p, id); return;
   }
   const mkId = attr('data-mk');
   if (mkId){
@@ -1581,7 +1633,7 @@ document.addEventListener('keydown', e => {
   if (k === 'v') setTool('select'); else if (k === 'l') setTool('lasso'); else if (k === 'm') setTool('move');
   else if (k === 'g') groupSel();
   else if (k === 'delete' || k === 'backspace'){ e.preventDefault(); if (ui.sel.size) excludeSel(); else if (ui.selPart) deletePart(p, ui.selPart); }
-  else if (k === 'escape'){ ui.sel.clear(); ui.selPart = null; ui.selRef = null; if (ui.tool === 'add') ui.tool = 'select'; renderAll(); }
+  else if (k === 'escape'){ if (ui.ordering){ finishOrder(false); return; } ui.sel.clear(); ui.selPart = null; ui.selRef = null; if (ui.tool === 'add') ui.tool = 'select'; renderAll(); }
 });
 
 // ---------- boot ----------
