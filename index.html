@@ -233,6 +233,17 @@ input[type=color]{width:32px;height:30px;border:0;border-radius:7px;padding:3px;
 #pop .pop-h{font-size:12px;font-weight:700;color:var(--mut);margin-bottom:8px}
 #pop .sws{display:flex;gap:6px;margin:8px 0}
 #pop .sws button{width:24px;height:24px;border-radius:6px;border:0;box-shadow:inset 0 0 0 1px rgba(0,0,0,.12);cursor:pointer;padding:0}
+#app.locked #pageWrap,#app.locked #panel>*,#app.locked .pc-del,#app.locked .addp{pointer-events:none}
+#app.locked #panel>*{opacity:.4}
+#app.locked .addp{opacity:.4}
+#bEdit{background:var(--ink);color:#fff}
+#bEdit:hover{background:#000}
+#bEdit[hidden]{display:none}
+#pop .xp{display:flex;flex-direction:column;gap:2px;margin:0 -6px}
+#pop .xp button{display:flex;align-items:baseline;justify-content:space-between;gap:10px;border:0;background:transparent;font:inherit;padding:8px 6px;border-radius:7px;cursor:pointer;text-align:left;color:var(--ink)}
+#pop .xp button:hover{background:var(--soft)}
+#pop .xp b{font-weight:600}
+#pop .xp span{font-size:11px;color:var(--mut)}
 #pop .lib{max-height:320px;overflow:auto;margin:0 -6px}
 #pop .lib-row{display:flex;align-items:center;gap:8px;padding:7px 6px;border-radius:7px;cursor:pointer}
 #pop .lib-row:hover{background:var(--soft)}
@@ -272,10 +283,10 @@ input[type=color]{width:32px;height:30px;border:0;border-radius:7px;padding:3px;
       </div>
       <span class="gap"></span>
       <div class="tg">
+        <button class="tb" id="bEdit" title="Unlock to edit" hidden><svg viewBox="0 0 24 24"><path d="M4 20h4L19 9l-4-4L4 16z"/><path d="m13.5 6.5 4 4"/></svg>Edit</button>
         <button class="tb" id="bNew" title="New document">New</button>
-        <button class="tb" id="bOpen" title="Saved projects (⌘O)">Open</button>
-        <button class="tb" id="bSave" title="Save (⌘S) · Save as copy ⇧⌘S">Save</button>
-        <button class="tb" id="bPdf" title="Export PDF">Export</button>
+        <button class="tb ic" id="bOpen" data-tip="Projects"><svg viewBox="0 0 24 24"><path d="M3.5 7V5.5a1.5 1.5 0 0 1 1.5-1.5h4.2l2 2.2H19a1.5 1.5 0 0 1 1.5 1.5V18a1.5 1.5 0 0 1-1.5 1.5H5A1.5 1.5 0 0 1 3.5 18z"/><path d="M3.5 9.5h17"/></svg></button>
+        <button class="tb" id="bPdf" title="Export PDF or JSON">Export</button>
       </div>
     </div>
     <div id="pageWrap"></div>
@@ -349,14 +360,14 @@ function newSpecPage(){ return {
   objects: [], groups: [], excluded: [], manual: [], parts: [], refs: [], listW: 760, listCols: 2, order: 'row', rowTol: 0.6
 }; }
 let S, IMG = {}, cur = 0, scale = 0.5;
-const ui = { partsOpen: false, tool: 'select', sel: new Set(), selPart: null, showDet: true, selRef: null };
+const ui = { locked: false, partsOpen: false, tool: 'select', sel: new Set(), selPart: null, showDet: true, selRef: null };
 const RT = {}, RTp = {}; const imgCache = new Map(), cleanCache = new Map(), cleanReady = new Map();
 let fileHandle = null;
 const undoS = [], redoS = [];
 
 function freshDoc(){
   S = { meta: defMeta(), pages: [ { id: uid(), type: 'cover' }, newSpecPage(), { id: uid(), type: 'closing' } ] };
-  IMG = {}; cur = 1; fileHandle = null; unsaved = false; resetCaches(); undoS.length = 0; redoS.length = 0;
+  IMG = {}; cur = 1; fileHandle = null; unsaved = false; resetCaches(); if (ui.locked !== undefined) setLocked(false); undoS.length = 0; redoS.length = 0;
 }
 function resetCaches(){ thumbCache && thumbCache.clear(); for (const k in RT) delete RT[k]; for (const k in RTp) delete RTp[k]; imgCache.clear(); cleanCache.clear(); cleanReady.clear(); ui.sel.clear(); ui.selPart = null; ui.selRef = null; }
 const curPage = () => S.pages[cur];
@@ -381,7 +392,7 @@ const idb = {
 };
 let asT;
 let unsaved = false;
-function dirty(){ unsaved = true; clearTimeout(asT); asT = setTimeout(() => { try { idb.set('draft', serialize()).catch(() => {}); } catch(e){} }, 1500); updateTop(); }
+function dirty(){ unsaved = true; clearTimeout(asT); asT = setTimeout(() => { save().catch(() => {}); }, 1200); updateTop(); }
 
 // ---------- file naming / save / open ----------
 function yymmdd(){ const d = (S.meta.date || '').replace(/\D/g, ''); return d.length >= 8 ? d.slice(2, 8) : d; }
@@ -397,16 +408,27 @@ function serialize(){ return JSON.stringify({ format: 'bebop-spec', schema: 1, s
 // projects are kept inside the site (IndexedDB): 'lib' = index list, 'p:<id>' = project data
 const libName = () => (S.meta.project || '').trim() || 'Untitled';
 async function libList(){ try { return (await idb.get('lib')) || []; } catch(e){ return []; } }
-async function save(as){
-  try {
-    if (!S.meta.libId || as) S.meta.libId = 'L' + uid();
-    const id = S.meta.libId, data = serialize();
-    await idb.set('p:' + id, data);
-    const list = (await libList()).filter(x => x.id !== id);
-    list.unshift({ id, name: libName(), savedAt: Date.now(), pages: S.pages.length });
-    await idb.set('lib', list);
-    unsaved = false; toast('Saved · ' + libName()); return true;
-  } catch (err){ toast('Could not save: ' + err.message); return false; }
+// autosave: every change is written to the library under the project name (cover footer)
+async function save(){
+  if (!S.meta.libId) S.meta.libId = 'L' + uid();
+  const id = S.meta.libId, data = serialize();
+  await idb.set('p:' + id, data); await idb.set('cur', id);
+  const list = (await libList()).filter(x => x.id !== id);
+  list.unshift({ id, name: libName(), savedAt: Date.now(), pages: S.pages.length });
+  await idb.set('lib', list); unsaved = false;
+}
+// opened projects are read-only until Edit is pressed
+function setLocked(v){ ui.locked = v; $('#app').classList.toggle('locked', v); $('#bEdit').hidden = !v; }
+function openExportPop(){
+  const pop = $('#pop');
+  pop.replaceChildren(el('div', { class: 'pop-h' }, 'Export'),
+    el('div', { class: 'xp' },
+      el('button', { onclick: () => { closePop(); printPdf(); } }, el('b', {}, 'PDF'), el('span', {}, '인쇄·전달용')),
+      el('button', { onclick: () => { closePop(); exportJson(); } }, el('b', {}, 'JSON'), el('span', {}, '프로젝트 백업'))));
+  pop.hidden = false; pop.style.width = '200px';
+  const b = $('#bPdf').getBoundingClientRect(), r = pop.getBoundingClientRect();
+  pop.style.left = clamp(b.right - r.width, 8, innerWidth - r.width - 8) + 'px';
+  pop.style.top = (b.bottom + 8) + 'px';
 }
 function exportJson(){ download(new Blob([serialize()], { type: 'application/json' }), jsonName()); }
 function loadDoc(obj){
@@ -415,13 +437,6 @@ function loadDoc(obj){
   IMG = obj.images || {}; resetCaches(); undoS.length = 0; redoS.length = 0;
   S.pages.forEach(p => { if (p.type === 'spec' && p.det.merge === 4 && p.det.minArea === 60) Object.assign(p.det, DET, { bg: null }); });
   cur = Math.min(1, S.pages.length - 1); unsaved = false;
-}
-async function importJson(){
-  try {
-    const [file] = await pickFile('.json,application/json'); if (!file) return;
-    loadDoc(JSON.parse(await file.text())); delete S.meta.libId; fileHandle = null;
-    renderAll(); toast('Opened · ' + file.name);
-  } catch (err){ toast('Could not open: ' + err.message); }
 }
 function fmtTime(t){ const d = new Date(t); return `${String(d.getFullYear()).slice(2)}.${pad2(d.getMonth() + 1)}.${pad2(d.getDate())} ${pad2(d.getHours())}:${pad2(d.getMinutes())}`; }
 async function openDoc(){
@@ -435,18 +450,15 @@ async function openDoc(){
     } });
     del.innerHTML = ICON_TRASH;
     return el('div', { class: 'lib-row' + (x.id === S.meta.libId ? ' on' : ''), onclick: async () => {
-      if (unsaved && x.id !== S.meta.libId && !confirm('Open this project? Unsaved changes will be lost.')) return;
       try {
+        if (unsaved){ clearTimeout(asT); await save(); }
         const d = await idb.get('p:' + x.id); if (!d) throw new Error('missing data');
-        loadDoc(JSON.parse(d)); S.meta.libId = x.id; closePop(); renderAll(); toast('Opened · ' + x.name);
+        loadDoc(JSON.parse(d)); S.meta.libId = x.id; idb.set('cur', x.id); setLocked(true); closePop(); renderAll(); toast('Opened · ' + x.name + ' — Edit to change');
       } catch (err){ toast('Could not open: ' + err.message); }
     } }, el('div', { class: 'lib-t' }, el('b', {}, x.name), el('span', {}, fmtTime(x.savedAt) + ' · ' + x.pages + 'p')), del);
   });
   pop.replaceChildren(el('div', { class: 'pop-h' }, 'Saved projects'),
-    rows.length ? el('div', { class: 'lib' }, ...rows) : el('div', { class: 'lib-empty' }, '저장된 프로젝트 없음'),
-    el('div', { class: 'lib-f' },
-      el('button', { onclick: () => { closePop(); importJson(); } }, 'Import .json'),
-      el('button', { onclick: () => { closePop(); exportJson(); } }, 'Download .json')));
+    rows.length ? el('div', { class: 'lib' }, ...rows) : el('div', { class: 'lib-empty' }, '저장된 프로젝트 없음'));
   pop.hidden = false; pop.style.width = '300px';
   const b = $('#bOpen').getBoundingClientRect(), r = pop.getBoundingClientRect();
   pop.style.left = clamp(b.right - r.width, 8, innerWidth - r.width - 8) + 'px';
@@ -1045,7 +1057,7 @@ function dropRange(){ const n = S.pages.length; return [isEnd(S.pages[0]) && S.p
 function pageDnD(card, i, fixed){
   const clear = () => document.querySelectorAll('.pc.dropA,.pc.dropB').forEach(x => x.classList.remove('dropA', 'dropB'));
   if (!fixed){
-    card.addEventListener('dragstart', e => { dragPage = i; e.dataTransfer.effectAllowed = 'move'; e.dataTransfer.setData('text/x-bebop-page', String(i)); card.classList.add('dragging'); });
+    card.addEventListener('dragstart', e => { if (ui.locked){ e.preventDefault(); return; } dragPage = i; e.dataTransfer.effectAllowed = 'move'; e.dataTransfer.setData('text/x-bebop-page', String(i)); card.classList.add('dragging'); });
     card.addEventListener('dragend', () => { dragPage = null; card.classList.remove('dragging'); clear(); });
   }
   const target = e => { const r = card.getBoundingClientRect(), [lo, hi] = dropRange(); return clamp(i + (e.clientY > r.top + r.height/2 ? 1 : 0), lo, hi); };
@@ -1584,8 +1596,9 @@ function closePop(){
     const v = pageBg(popFor.p).toLowerCase();
     S.meta.recentBg = [v, ...(S.meta.recentBg || []).filter(x => x !== v)].slice(0, 8); dirty();
   }
-  popFor = null;
+  popFor = null; popKind = null;
 }
+let popKind = null;
 // long press (≈0.5s without moving) on the page background opens the color popover
 function longPressBg(e, p){
   const x0 = e.clientX, y0 = e.clientY;
@@ -1620,7 +1633,7 @@ function openBgPop(p, x, y){
   pop.style.left = clamp(x + 14, 8, innerWidth - r.width - 8) + 'px';
   pop.style.top = clamp(y + 14, 8, innerHeight - r.height - 8) + 'px';
 }
-document.addEventListener('pointerdown', e => { if (!$('#pop').hidden && !e.target.closest('#pop, #bOpen')) closePop(); }, true);
+document.addEventListener('pointerdown', e => { if (!$('#pop').hidden && !e.target.closest('#pop, #bOpen, #bPdf')) closePop(); }, true);
 
 // ---------- inline text editing (cover footer, spec title) ----------
 let edC = false;
@@ -1735,10 +1748,10 @@ $('#stage').addEventListener('pointerdown', e => {
   const ae = document.activeElement; if (ae && ae.isContentEditable) ae.blur();
   ui.showDet = false; ui.sel.clear(); ui.selPart = null; renderAll();
 });
-$('#bNew').onclick = () => { if (unsaved && !confirm('Start a new document? Unsaved changes will be lost.')) return; freshDoc(); renderAll(); };
-$('#bSave').onclick = e => save(e.shiftKey);
-$('#bOpen').onclick = () => { $('#pop').hidden ? openDoc() : closePop(); };
-$('#bPdf').onclick = printPdf;
+$('#bNew').onclick = async () => { if (unsaved){ clearTimeout(asT); await save().catch(() => {}); } freshDoc(); renderAll(); toast('New document · 이전 작업은 폴더에 저장됨'); };
+$('#bEdit').onclick = () => { setLocked(false); renderAll(); toast('Editing'); };
+$('#bOpen').onclick = () => { $('#pop').hidden || popKind !== 'lib' ? (closePop(), popKind = 'lib', openDoc()) : closePop(); };
+$('#bPdf').onclick = () => { $('#pop').hidden || popKind !== 'exp' ? (closePop(), popKind = 'exp', openExportPop()) : closePop(); };
 $('#bFull').onclick = presStart;
 window.addEventListener('resize', () => { layout(); fitThumbs(); if (pres.on) presRender(); });
 const stage = $('#stage');
@@ -1746,13 +1759,15 @@ stage.addEventListener('dragover', e => e.preventDefault());
 stage.addEventListener('drop', e => {
   e.preventDefault();
   const js = [...e.dataTransfer.files].find(f => /\.json$/i.test(f.name));
-  if (js){ js.text().then(t => { loadDoc(JSON.parse(t)); delete S.meta.libId; fileHandle = null; renderAll(); toast('Opened · ' + js.name); }).catch(err => toast('Could not open: ' + err.message)); return; }
+  if (js){ js.text().then(t => { loadDoc(JSON.parse(t)); delete S.meta.libId; fileHandle = null; setLocked(true); renderAll(); toast('Opened · ' + js.name); }).catch(err => toast('Could not open: ' + err.message)); return; }
+  if (ui.locked) return;
   const fs = [...e.dataTransfer.files].filter(f => f.type.startsWith('image/')); if (!fs.length) return;
   const p = curPage();
   if (p.type === 'spec') setCapture(p, fs[0]); else if (p.type === 'render') setRenderImg(p, fs[0]); else addRenderPages(fs);
 });
 document.addEventListener('paste', e => {
   const ae = document.activeElement, tag = ae && ae.tagName; if (tag === 'INPUT' || tag === 'TEXTAREA' || (ae && ae.isContentEditable)) return;
+  if (ui.locked) return;
   const item = [...(e.clipboardData ? e.clipboardData.items : [])].find(i => i.type.startsWith('image/')); if (!item) return;
   const f = item.getAsFile(), p = curPage(); e.preventDefault();
   if (p.type === 'spec') setCapture(p, f); else if (p.type === 'render') setRenderImg(p, f); else addRenderPages([f]);
@@ -1768,7 +1783,8 @@ document.addEventListener('keydown', e => {
     return;
   }
   if (k === 'f' && !mod && !typing){ presStart(); return; }
-  if (mod && k === 's'){ e.preventDefault(); save(e.shiftKey); return; }
+  if (mod && k === 's'){ e.preventDefault(); return; }   // autosaved
+  if (ui.locked) return;
   if (mod && k === 'o'){ e.preventDefault(); openDoc(); return; }
   if (mod && (k === 'z' || k === 'y')){ if (typing) return; e.preventDefault(); (k === 'y' || e.shiftKey) ? redo() : undo(); return; }
   if (typing || mod) return;
@@ -1785,8 +1801,8 @@ document.addEventListener('keydown', e => {
   freshDoc();
   try { await prepLogo(); } catch(e){}
   try {
-    const d = await idb.get('draft');
-    if (d){ loadDoc(JSON.parse(d)); setTimeout(() => toast('Restored your last session', [['Start new', () => { freshDoc(); renderAll(); }]]), 300); }
+    const id = await idb.get('cur'), d = id ? await idb.get('p:' + id) : await idb.get('draft');
+    if (d){ loadDoc(JSON.parse(d)); if (id) S.meta.libId = id; setTimeout(() => toast('Restored your last session'), 300); }
   } catch(e){ freshDoc(); }
   layout(); renderAll();
   try { await document.fonts.ready; renderAll(); } catch(e){}
