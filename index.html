@@ -233,6 +233,21 @@ input[type=color]{width:32px;height:30px;border:0;border-radius:7px;padding:3px;
 #pop .pop-h{font-size:12px;font-weight:700;color:var(--mut);margin-bottom:8px}
 #pop .sws{display:flex;gap:6px;margin:8px 0}
 #pop .sws button{width:24px;height:24px;border-radius:6px;border:0;box-shadow:inset 0 0 0 1px rgba(0,0,0,.12);cursor:pointer;padding:0}
+#pop .lib{max-height:320px;overflow:auto;margin:0 -6px}
+#pop .lib-row{display:flex;align-items:center;gap:8px;padding:7px 6px;border-radius:7px;cursor:pointer}
+#pop .lib-row:hover{background:var(--soft)}
+#pop .lib-row.on b::after{content:' ●';color:var(--red);font-size:9px;vertical-align:2px}
+#pop .lib-t{flex:1;min-width:0;display:flex;flex-direction:column;gap:2px}
+#pop .lib-t b{font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+#pop .lib-t span{font-size:11px;color:var(--mut)}
+#pop .lib-del{border:0;background:transparent;width:26px;height:26px;border-radius:6px;cursor:pointer;color:var(--mut);opacity:0;display:inline-flex;align-items:center;justify-content:center;position:relative}
+#pop .lib-row:hover .lib-del{opacity:1}
+#pop .lib-del:hover{background:#fff;color:var(--ink)}
+#pop .lib-del svg{width:15px;height:15px;fill:none;stroke:currentColor;stroke-width:1.7;stroke-linecap:round;stroke-linejoin:round}
+#pop .lib-empty{color:var(--mut);font-size:12px;padding:6px 0 4px}
+#pop .lib-f{display:flex;gap:6px;margin-top:10px;padding-top:10px;border-top:1px solid rgba(0,0,0,.07)}
+#pop .lib-f button{border:0;background:transparent;color:var(--mut);font:inherit;font-size:11px;padding:4px 6px;border-radius:6px;cursor:pointer}
+#pop .lib-f button:hover{background:var(--soft);color:var(--ink)}
 #pop .sws button.on{box-shadow:0 0 0 2px #fff,0 0 0 4px var(--red)}
 .toast{position:fixed;left:50%;bottom:24px;transform:translateX(-50%);background:#111;color:#fff;padding:10px 16px;border-radius:8px;z-index:60;display:flex;gap:12px;align-items:center;box-shadow:0 6px 20px rgba(0,0,0,.25)}
 .toast button{background:#333;border:0;color:#fff;border-radius:5px;padding:4px 9px;cursor:pointer}
@@ -258,7 +273,8 @@ input[type=color]{width:32px;height:30px;border:0;border-radius:7px;padding:3px;
       <span class="gap"></span>
       <div class="tg">
         <button class="tb" id="bNew" title="New document">New</button>
-        <button class="tb" id="bSave" title="Save (⌘S) · Save as ⇧⌘S · Open ⌘O or drop a .json file">Save</button>
+        <button class="tb" id="bOpen" title="Saved projects (⌘O)">Open</button>
+        <button class="tb" id="bSave" title="Save (⌘S) · Save as copy ⇧⌘S">Save</button>
         <button class="tb" id="bPdf" title="Export PDF">Export</button>
       </div>
     </div>
@@ -340,7 +356,7 @@ const undoS = [], redoS = [];
 
 function freshDoc(){
   S = { meta: defMeta(), pages: [ { id: uid(), type: 'cover' }, newSpecPage(), { id: uid(), type: 'closing' } ] };
-  IMG = {}; cur = 1; fileHandle = null; resetCaches(); undoS.length = 0; redoS.length = 0;
+  IMG = {}; cur = 1; fileHandle = null; unsaved = false; resetCaches(); undoS.length = 0; redoS.length = 0;
 }
 function resetCaches(){ thumbCache && thumbCache.clear(); for (const k in RT) delete RT[k]; for (const k in RTp) delete RTp[k]; imgCache.clear(); cleanCache.clear(); cleanReady.clear(); ui.sel.clear(); ui.selPart = null; ui.selRef = null; }
 const curPage = () => S.pages[cur];
@@ -360,10 +376,12 @@ const idb = {
   db: null,
   open(){ if (this.db) return Promise.resolve(this.db); return new Promise((res, rej) => { const r = indexedDB.open('bebop-spec', 1); r.onupgradeneeded = () => r.result.createObjectStore('kv'); r.onsuccess = () => { this.db = r.result; res(r.result); }; r.onerror = () => rej(r.error); }); },
   async set(k, v){ const db = await this.open(); return new Promise((res, rej) => { const t = db.transaction('kv', 'readwrite'); t.objectStore('kv').put(v, k); t.oncomplete = res; t.onerror = () => rej(t.error); }); },
+  async del(k){ const db = await this.open(); return new Promise((res, rej) => { const t = db.transaction('kv', 'readwrite'); t.objectStore('kv').delete(k); t.oncomplete = res; t.onerror = () => rej(t.error); }); },
   async get(k){ const db = await this.open(); return new Promise((res, rej) => { const t = db.transaction('kv'); const q = t.objectStore('kv').get(k); q.onsuccess = () => res(q.result); q.onerror = () => rej(q.error); }); }
 };
 let asT;
-function dirty(){ clearTimeout(asT); asT = setTimeout(() => { try { idb.set('draft', serialize()).catch(() => {}); } catch(e){} }, 1500); updateTop(); }
+let unsaved = false;
+function dirty(){ unsaved = true; clearTimeout(asT); asT = setTimeout(() => { try { idb.set('draft', serialize()).catch(() => {}); } catch(e){} }, 1500); updateTop(); }
 
 // ---------- file naming / save / open ----------
 function yymmdd(){ const d = (S.meta.date || '').replace(/\D/g, ''); return d.length >= 8 ? d.slice(2, 8) : d; }
@@ -376,35 +394,63 @@ function usedImages(){
   const o = {}; used.forEach(id => { if (IMG[id]) o[id] = IMG[id]; }); return o;
 }
 function serialize(){ return JSON.stringify({ format: 'bebop-spec', schema: 1, savedAt: new Date().toISOString(), meta: S.meta, pages: S.pages, images: usedImages() }); }
+// projects are kept inside the site (IndexedDB): 'lib' = index list, 'p:<id>' = project data
+const libName = () => (S.meta.project || '').trim() || 'Untitled';
+async function libList(){ try { return (await idb.get('lib')) || []; } catch(e){ return []; } }
 async function save(as){
-  const blob = new Blob([serialize()], { type: 'application/json' });
-  if (window.showSaveFilePicker){
-    try {
-      if (!fileHandle || as) fileHandle = await window.showSaveFilePicker({ suggestedName: jsonName(), types: [{ description: 'BEBOP spec project', accept: { 'application/json': ['.json'] } }] });
-      const w = await fileHandle.createWritable(); await w.write(blob); await w.close();
-      toast('Saved · ' + fileHandle.name); return true;
-    } catch (err){ if (err.name === 'AbortError') return false; fileHandle = null; }
-  }
-  download(blob, jsonName()); toast('Project file downloaded. Move it to your shared delivery folder.'); return true;
+  try {
+    if (!S.meta.libId || as) S.meta.libId = 'L' + uid();
+    const id = S.meta.libId, data = serialize();
+    await idb.set('p:' + id, data);
+    const list = (await libList()).filter(x => x.id !== id);
+    list.unshift({ id, name: libName(), savedAt: Date.now(), pages: S.pages.length });
+    await idb.set('lib', list);
+    unsaved = false; toast('Saved · ' + libName()); return true;
+  } catch (err){ toast('Could not save: ' + err.message); return false; }
 }
+function exportJson(){ download(new Blob([serialize()], { type: 'application/json' }), jsonName()); }
 function loadDoc(obj){
   if (!obj || obj.format !== 'bebop-spec') throw new Error('Not a BEBOP spec file');
   S = { meta: { ...defMeta(), ...obj.meta }, pages: obj.pages };
   IMG = obj.images || {}; resetCaches(); undoS.length = 0; redoS.length = 0;
   S.pages.forEach(p => { if (p.type === 'spec' && p.det.merge === 4 && p.det.minArea === 60) Object.assign(p.det, DET, { bg: null }); });
-  cur = Math.min(1, S.pages.length - 1);
+  cur = Math.min(1, S.pages.length - 1); unsaved = false;
 }
-async function openDoc(){
+async function importJson(){
   try {
-    let file;
-    if (window.showOpenFilePicker){
-      const [h] = await window.showOpenFilePicker({ types: [{ description: 'BEBOP spec project', accept: { 'application/json': ['.json'] } }] });
-      file = await h.getFile(); fileHandle = h;
-    } else { [file] = await pickFile('.json,application/json'); fileHandle = null; }
-    if (!file) return;
-    const h = fileHandle; loadDoc(JSON.parse(await file.text())); fileHandle = h;
+    const [file] = await pickFile('.json,application/json'); if (!file) return;
+    loadDoc(JSON.parse(await file.text())); delete S.meta.libId; fileHandle = null;
     renderAll(); toast('Opened · ' + file.name);
-  } catch (err){ if (err.name !== 'AbortError') toast('Could not open: ' + err.message); }
+  } catch (err){ toast('Could not open: ' + err.message); }
+}
+function fmtTime(t){ const d = new Date(t); return `${String(d.getFullYear()).slice(2)}.${pad2(d.getMonth() + 1)}.${pad2(d.getDate())} ${pad2(d.getHours())}:${pad2(d.getMinutes())}`; }
+async function openDoc(){
+  const pop = $('#pop'), list = await libList();
+  const rows = list.map(x => {
+    const del = el('button', { class: 'lib-del', 'data-tip': 'Delete', onclick: async ev => {
+      ev.stopPropagation(); if (!confirm(`Delete "${x.name}"?`)) return;
+      await idb.del('p:' + x.id); await idb.set('lib', (await libList()).filter(y => y.id !== x.id));
+      if (S.meta.libId === x.id) delete S.meta.libId;
+      openDoc();
+    } });
+    del.innerHTML = ICON_TRASH;
+    return el('div', { class: 'lib-row' + (x.id === S.meta.libId ? ' on' : ''), onclick: async () => {
+      if (unsaved && x.id !== S.meta.libId && !confirm('Open this project? Unsaved changes will be lost.')) return;
+      try {
+        const d = await idb.get('p:' + x.id); if (!d) throw new Error('missing data');
+        loadDoc(JSON.parse(d)); S.meta.libId = x.id; closePop(); renderAll(); toast('Opened · ' + x.name);
+      } catch (err){ toast('Could not open: ' + err.message); }
+    } }, el('div', { class: 'lib-t' }, el('b', {}, x.name), el('span', {}, fmtTime(x.savedAt) + ' · ' + x.pages + 'p')), del);
+  });
+  pop.replaceChildren(el('div', { class: 'pop-h' }, 'Saved projects'),
+    rows.length ? el('div', { class: 'lib' }, ...rows) : el('div', { class: 'lib-empty' }, '저장된 프로젝트 없음'),
+    el('div', { class: 'lib-f' },
+      el('button', { onclick: () => { closePop(); importJson(); } }, 'Import .json'),
+      el('button', { onclick: () => { closePop(); exportJson(); } }, 'Download .json')));
+  pop.hidden = false; pop.style.width = '300px';
+  const b = $('#bOpen').getBoundingClientRect(), r = pop.getBoundingClientRect();
+  pop.style.left = clamp(b.right - r.width, 8, innerWidth - r.width - 8) + 'px';
+  pop.style.top = (b.bottom + 8) + 'px';
 }
 
 // ---------- detection ----------
@@ -1533,7 +1579,7 @@ function usedBgColors(){
   return out.slice(0, 12);
 }
 function closePop(){
-  const pop = $('#pop'); if (pop.hidden) return; pop.hidden = true;
+  const pop = $('#pop'); if (pop.hidden) return; pop.hidden = true; pop.style.width = '';
   if (popFor && pageBg(popFor.p) !== popFor.start){
     const v = pageBg(popFor.p).toLowerCase();
     S.meta.recentBg = [v, ...(S.meta.recentBg || []).filter(x => x !== v)].slice(0, 8); dirty();
@@ -1574,7 +1620,7 @@ function openBgPop(p, x, y){
   pop.style.left = clamp(x + 14, 8, innerWidth - r.width - 8) + 'px';
   pop.style.top = clamp(y + 14, 8, innerHeight - r.height - 8) + 'px';
 }
-document.addEventListener('pointerdown', e => { if (!$('#pop').hidden && !e.target.closest('#pop')) closePop(); }, true);
+document.addEventListener('pointerdown', e => { if (!$('#pop').hidden && !e.target.closest('#pop, #bOpen')) closePop(); }, true);
 
 // ---------- inline text editing (cover footer, spec title) ----------
 let edC = false;
@@ -1689,8 +1735,9 @@ $('#stage').addEventListener('pointerdown', e => {
   const ae = document.activeElement; if (ae && ae.isContentEditable) ae.blur();
   ui.showDet = false; ui.sel.clear(); ui.selPart = null; renderAll();
 });
-$('#bNew').onclick = () => { if (!confirm('Start a new document? Unsaved changes will be lost.')) return; freshDoc(); renderAll(); };
+$('#bNew').onclick = () => { if (unsaved && !confirm('Start a new document? Unsaved changes will be lost.')) return; freshDoc(); renderAll(); };
 $('#bSave').onclick = e => save(e.shiftKey);
+$('#bOpen').onclick = () => { $('#pop').hidden ? openDoc() : closePop(); };
 $('#bPdf').onclick = printPdf;
 $('#bFull').onclick = presStart;
 window.addEventListener('resize', () => { layout(); fitThumbs(); if (pres.on) presRender(); });
@@ -1699,7 +1746,7 @@ stage.addEventListener('dragover', e => e.preventDefault());
 stage.addEventListener('drop', e => {
   e.preventDefault();
   const js = [...e.dataTransfer.files].find(f => /\.json$/i.test(f.name));
-  if (js){ js.text().then(t => { loadDoc(JSON.parse(t)); fileHandle = null; renderAll(); toast('Opened · ' + js.name); }).catch(err => toast('Could not open: ' + err.message)); return; }
+  if (js){ js.text().then(t => { loadDoc(JSON.parse(t)); delete S.meta.libId; fileHandle = null; renderAll(); toast('Opened · ' + js.name); }).catch(err => toast('Could not open: ' + err.message)); return; }
   const fs = [...e.dataTransfer.files].filter(f => f.type.startsWith('image/')); if (!fs.length) return;
   const p = curPage();
   if (p.type === 'spec') setCapture(p, fs[0]); else if (p.type === 'render') setRenderImg(p, fs[0]); else addRenderPages(fs);
