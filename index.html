@@ -733,7 +733,7 @@ function placeMarkers(p, all){
 // ---------- geometry ----------
 function toPg(p, q){ return { x: p.box.x + q.x/p.nw*p.box.w, y: p.box.y + q.y/p.nh*p.box.h }; }
 function fromPg(p, q){ return { x: (q.x - p.box.x)/p.box.w*p.nw, y: (q.y - p.box.y)/p.box.h*p.nh }; }
-function listTop(p){ return p.title ? 140 : 96; }
+function listTop(p){ return p.title ? 172 : 96; }
 function fitDims(p){
   const ax = 62 + p.listW + 40, ay = 90, aw = 1858 - ax, ah = 985 - ay;
   const s = Math.min(aw/p.nw, ah/p.nh), w = p.nw*s, h = p.nh*s;
@@ -835,7 +835,7 @@ function zoomRender(p, z, P){
   p.zoom = z; p.px = x - (1920 - r0.w*k)/2; p.py = y - (1080 - r0.h*k)/2;
 }
 // one entry of the parts list; while editing, empty fields show a faint example
-const EX = { name: 'Part name' };
+const EX = { name: 'Name (ea)' };
 // color is always a PANTONE code: stored as "PANTONE 426 U", the user types only "426 U"
 const pcode = pt => (pt.color || '').replace(/^\s*PANTONE\s*/i, '').trim();
 const setPcode = (pt, v) => { v = (v || '').trim(); pt.color = v ? 'PANTONE ' + v.toUpperCase() : ''; };
@@ -1331,7 +1331,7 @@ function partThumb(p, u){
 function partRow(p, pt, ix, box, um){
   const grip = el('span', { class: 'grip', draggable: 'true', title: 'Drag to reorder' }, '⠿');
   const row = el('div', { class: 'prow' + (ui.selPart === pt.uid ? ' on' : ''), 'data-uid': pt.uid },
-    el('div', { class: 'prow-h' }, grip, el('span', { class: 'dot' }, p.startNum + ix), partThumb(p, um && um.get(pt.key)), inp(pt, 'name', { ph: 'Part name' }),
+    el('div', { class: 'prow-h' }, grip, el('span', { class: 'dot' }, p.startNum + ix), partThumb(p, um && um.get(pt.key)), inp(pt, 'name', { ph: 'Name (ea)' }),
       el('span', { class: 'updn' },
         el('button', { title: 'Move up', disabled: ix === 0, onclick: () => movePart(p, ix, -1) }, '▲'),
         el('button', { title: 'Move down', disabled: ix === p.parts.length - 1, onclick: () => movePart(p, ix, 1) }, '▼')),
