@@ -236,8 +236,12 @@ input[type=color]{width:32px;height:30px;border:0;border-radius:7px;padding:3px;
 #app.locked #pageWrap,#app.locked #panel>*,#app.locked .pc-del,#app.locked .addp{pointer-events:none}
 #app.locked #panel>*{opacity:.4}
 #app.locked .addp{opacity:.4}
-#bEdit{background:var(--ink);color:#fff}
-#bEdit:hover{background:#000}
+#bEdit{background:#fff;color:var(--ink);position:relative;overflow:hidden;isolation:isolate}
+#bEdit .lbl{display:inline-flex;align-items:center;gap:6px;color:#fff;mix-blend-mode:difference}
+#bEdit .fill{position:absolute;inset:0;background:var(--ink);transform:scaleX(0);transform-origin:left;z-index:-1;transition:transform .2s ease-out}
+#bEdit.hold .fill{transform:scaleX(1);transition:transform .7s linear}
+#bEdit.done{animation:unl .25s ease-out}
+@keyframes unl{50%{transform:scale(1.06)}}
 #bEdit[hidden]{display:none}
 #pop .xp{display:flex;flex-direction:column;gap:2px;margin:0 -6px}
 #pop .xp button{display:flex;align-items:baseline;justify-content:space-between;gap:10px;border:0;background:transparent;font:inherit;padding:8px 6px;border-radius:7px;cursor:pointer;text-align:left;color:var(--ink)}
@@ -284,7 +288,7 @@ input[type=color]{width:32px;height:30px;border:0;border-radius:7px;padding:3px;
       </div>
       <span class="gap"></span>
       <div class="tg">
-        <button class="tb" id="bEdit" title="Unlock to edit" hidden><svg viewBox="0 0 24 24"><path d="M4 20h4L19 9l-4-4L4 16z"/><path d="m13.5 6.5 4 4"/></svg>Edit</button>
+        <button class="tb" id="bEdit" title="Hold to edit" hidden><i class="fill"></i><span class="lbl"><svg viewBox="0 0 24 24"><path d="M4 20h4L19 9l-4-4L4 16z"/><path d="m13.5 6.5 4 4"/></svg>Edit</span></button>
         <button class="tb" id="bNew" title="New document">New</button>
         <button class="tb" id="bOpen" title="Saved projects">Open</button>
         <button class="tb" id="bPdf" title="Export PDF or JSON">Export</button>
@@ -1752,7 +1756,17 @@ $('#stage').addEventListener('pointerdown', e => {
   ui.showDet = false; ui.sel.clear(); ui.selPart = null; renderAll();
 });
 $('#bNew').onclick = async () => { if (unsaved){ clearTimeout(asT); await save().catch(() => {}); } freshDoc(); renderAll(); toast('New document · 이전 작업은 폴더에 저장됨'); };
-$('#bEdit').onclick = () => { setLocked(false); renderAll(); toast('Editing'); };
+// hold ≈0.7s on Edit: black fills in, then the project unlocks
+(() => {
+  const b = $('#bEdit'); let t = null;
+  const stop = () => { clearTimeout(t); t = null; b.classList.remove('hold'); };
+  b.addEventListener('pointerdown', e => {
+    if (e.button) return; b.setPointerCapture(e.pointerId); b.classList.add('hold');
+    t = setTimeout(() => { t = null; b.classList.add('done'); setTimeout(() => { b.classList.remove('hold', 'done'); setLocked(false); renderAll(); toast('Editing'); }, 250); }, 700);
+  });
+  b.addEventListener('pointerup', () => { if (t){ stop(); toast('Edit을 길게 누르면 편집'); } });
+  b.addEventListener('pointercancel', stop);
+})();
 $('#bOpen').onclick = () => { $('#pop').hidden || popKind !== 'lib' ? (closePop(), popKind = 'lib', openDoc()) : closePop(); };
 $('#bPdf').onclick = () => { $('#pop').hidden || popKind !== 'exp' ? (closePop(), popKind = 'exp', openExportPop()) : closePop(); };
 $('#bFull').onclick = presStart;
