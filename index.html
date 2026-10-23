@@ -219,7 +219,7 @@ input[type=color]{width:32px;height:30px;border:0;border-radius:7px;padding:3px;
 .inter [contenteditable]:empty::before{content:attr(data-ph);opacity:.35}
 .inter .pg-title{min-width:300px;padding:0 6px;margin-left:-6px}
 .inter .cv-foot span[contenteditable]{padding:2px 6px}
-.cv-foot{position:absolute;left:0;right:0;bottom:62px;text-align:center;font-size:26px;font-weight:700;letter-spacing:.03em;word-spacing:.25em}
+.cv-foot{text-transform:uppercase;position:absolute;left:0;right:0;bottom:62px;text-align:center;font-size:26px;font-weight:700;letter-spacing:.03em;word-spacing:.25em}
 .cl-contact{position:absolute;left:108px;bottom:96px;font-size:40px;line-height:1.55;font-weight:500}
 .cl-logo{position:absolute;right:108px;bottom:96px}
 .rimg{position:absolute;max-width:none}
@@ -1656,7 +1656,7 @@ pw.addEventListener('input', e => {
   const t = e.target; if (!t.isContentEditable) return;
   if (!edC){ commit(); edC = true; }
   const v = t.textContent; if (!v) t.replaceChildren();
-  if (t.dataset.meta) S.meta[t.dataset.meta] = v;
+  if (t.dataset.meta) S.meta[t.dataset.meta] = t.closest('.cv-foot') ? v.toUpperCase() : v;   // cover info is always caps
   else if (t.dataset.title) curPage().title = v;
   else if (t.dataset.pf){
     const [id, f] = t.dataset.pf.split('|'), pt = curPage().parts.find(x => x.uid === id); if (!pt) return;
