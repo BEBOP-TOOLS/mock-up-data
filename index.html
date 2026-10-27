@@ -267,10 +267,10 @@ input[type=color]{width:32px;height:30px;border:0;border-radius:7px;padding:3px;
 /* ---- team login ---- */
 #gate{position:fixed;inset:0;z-index:100;background:var(--soft);display:grid;place-items:center}
 #gate[hidden]{display:none}
-#gate .gate-box{display:flex;flex-direction:column;align-items:center;gap:18px;text-align:center}
-#gate img{height:96px;margin-bottom:40px}
+#gate .gate-box{display:flex;flex-direction:column;align-items:stretch;gap:18px;text-align:center;width:max-content}
+#gate img{width:0;min-width:100%;height:auto;margin-bottom:14px}  /* as wide as the button */
 #gate p{margin:0;color:var(--mut)}
-#gate button{display:inline-flex;align-items:center;gap:10px;height:42px;padding:0 18px;border:0;border-radius:10px;background:var(--ink);color:#fff;font:inherit;cursor:pointer}
+#gate button{display:inline-flex;justify-content:center;align-items:center;gap:10px;height:42px;padding:0 18px;border:0;border-radius:10px;background:var(--ink);color:#fff;font:inherit;cursor:pointer}
 #gate button:hover{background:#000}
 #gate button svg{width:16px;height:16px}
 #gate .gate-msg{min-height:1.4em}
