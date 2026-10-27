@@ -268,7 +268,7 @@ input[type=color]{width:32px;height:30px;border:0;border-radius:7px;padding:3px;
 #gate{position:fixed;inset:0;z-index:100;background:var(--soft);display:grid;place-items:center}
 #gate[hidden]{display:none}
 #gate .gate-box{display:flex;flex-direction:column;align-items:center;gap:18px;text-align:center}
-#gate img{height:200px;mix-blend-mode:multiply;margin-bottom:14px}
+#gate img{height:96px;margin-bottom:40px}
 #gate p{margin:0;color:var(--mut)}
 #gate button{display:inline-flex;align-items:center;gap:10px;height:42px;padding:0 18px;border:0;border-radius:10px;background:var(--ink);color:#fff;font:inherit;cursor:pointer}
 #gate button:hover{background:#000}
@@ -483,7 +483,7 @@ async function cloudInit(){
 }
 // login screen: stays up until the Google redirect brings the user back
 function gate(err){
-  $('#gateLogo').src = LOGO_SRC; $('#gate').hidden = false;
+  $('#gateLogo').src = LOGO || LOGO_SRC; $('#gate').hidden = false;
   const m = $('#gateMsg'); if (err){ m.textContent = err; m.classList.add('err'); }
   $('#bLogin').onclick = () => cloud.sb.auth.signInWithOAuth({ provider: 'google', options: {
     redirectTo: location.origin + location.pathname, queryParams: { hd: DOMAIN, prompt: 'select_account' } } });
