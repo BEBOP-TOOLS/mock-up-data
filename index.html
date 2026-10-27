@@ -273,6 +273,7 @@ input[type=color]{width:32px;height:30px;border:0;border-radius:7px;padding:3px;
 #gate button{display:inline-flex;justify-content:center;align-items:center;gap:10px;height:42px;padding:0 18px;border:0;border-radius:10px;background:var(--ink);color:#fff;font:inherit;cursor:pointer}
 #gate button:hover{background:#000}
 #gate button svg{width:16px;height:16px}
+#gate .gate-sub{width:0;min-width:100%;white-space:nowrap;color:var(--mut);line-height:1;margin-top:-4px}
 #gate .gate-msg{min-height:1.4em}
 #gate .gate-msg.err{color:var(--red)}
 #pop .lib-del:hover{background:#fff;color:var(--ink)}
@@ -322,6 +323,7 @@ input[type=color]{width:32px;height:30px;border:0;border-radius:7px;padding:3px;
 <div id="gate" hidden><div class="gate-box">
   <img id="gateLogo" alt="BEBOP">
   <button id="bLogin"><svg viewBox="0 0 24 24"><path fill="#fff" d="M21.6 12.2c0-.7-.1-1.4-.2-2H12v3.8h5.4a4.6 4.6 0 0 1-2 3v2.5h3.2c1.9-1.7 3-4.3 3-7.3z"/><path fill="#fff" opacity=".8" d="M12 22c2.7 0 5-.9 6.6-2.4l-3.2-2.5c-.9.6-2 1-3.4 1-2.6 0-4.8-1.8-5.6-4.1H3.1v2.6A10 10 0 0 0 12 22z"/><path fill="#fff" opacity=".6" d="M6.4 14c-.2-.6-.3-1.3-.3-2s.1-1.4.3-2V7.4H3.1a10 10 0 0 0 0 9.2z"/><path fill="#fff" opacity=".9" d="M12 6c1.5 0 2.8.5 3.8 1.5l2.9-2.9A10 10 0 0 0 3.1 7.4L6.4 10C7.2 7.7 9.4 6 12 6z"/></svg>Sign in @bebop.kr</button>
+  <p class="gate-sub"><span id="gateSub">Mock-up Spec Sheet Maker</span></p>
   <p class="gate-msg" id="gateMsg"></p>
 </div></div>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.min.js"></script>
@@ -484,6 +486,8 @@ async function cloudInit(){
 // login screen: stays up until the Google redirect brings the user back
 function gate(err){
   $('#gateLogo').src = LOGO || LOGO_SRC; $('#gate').hidden = false;
+  const fit = () => { const t = $('#gateSub'); t.style.fontSize = '100px'; t.style.fontSize = (100 * $('#bLogin').offsetWidth / t.offsetWidth) + 'px'; };   // subtitle spans the button width
+  fit(); document.fonts.ready.then(fit);
   const m = $('#gateMsg'); if (err){ m.textContent = err; m.classList.add('err'); }
   $('#bLogin').onclick = () => cloud.sb.auth.signInWithOAuth({ provider: 'google', options: {
     redirectTo: location.origin + location.pathname, queryParams: { hd: DOMAIN, prompt: 'select_account' } } });
